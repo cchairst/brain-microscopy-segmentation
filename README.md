@@ -2,7 +2,7 @@
 
 Develop and compare tissue segmentation methods for nonhuman primate brain microscopy, starting with polarization-sensitive optical coherence tomography (PS-OCT). This repository provides runnable **2D starter baselines and evaluation**, following the supplied project brief. LSFM, aligned 3D models, full-resolution Zarr, and deep-learning methods are planned extensions.
 
-**Status:** implementation tested on synthetic data only. Real source dataset IDs, expert annotations, PS-OCT channel definitions, and alignment information have not yet been verified. No real-data performance claims are made.
+**Status:** K-means and random forest are tested on synthetic data. ANTs Atropos has also run on a real, downsampled Subject M reflectivity section from the CMC publication. Expert annotations, quantitative channel scaling, and cross-modality alignment remain unverified. No real-data tissue accuracy claims are made.
 
 ## Quick start
 
@@ -19,6 +19,23 @@ python segmentation.py demo --output outputs/synthetic_demo
 The demo creates six independent synthetic brain-like sections, trains both methods on three samples, and evaluates two held-out samples. The fourth sample is reserved for validation. Output masks use integer class IDs; `report.json` contains section, sample, and pooled scores. High scores on this easy synthetic example are software checks, not evidence of microscopy performance.
 
 ## Methods
+
+### MRI segmentation tool baseline
+
+`mri_baseline.py` applies **ANTs Atropos**, a medical-image finite-mixture segmentation method with Markov random field smoothing, to PS-OCT scalar images. It supports 2D grayscale JPEG/PNG pilots and numeric 2D/3D NIfTI with a reviewed binary foreground mask. It uses no human atlas or pretrained human MRI network.
+
+```bash
+pip install -r requirements-mri.txt
+python mri_baseline.py --image path/to/Slice_110_Ref.jpeg --output outputs/atropos_pilot
+# For a numeric NIfTI volume, provide a reviewed mask on the same grid:
+python mri_baseline.py --image path/to/Ref_slide_deck.nii.gz --mask path/to/foreground_mask.nii.gz --output outputs/atropos_volume
+```
+
+Outputs include raw class labels, posterior probability volumes, a foreground mask, source hash, settings, class counts, and a 2D preview. **Atropos class IDs represent intensity groups; they are not the semantic tissue IDs used by `segmentation.py`.** Do not pass these labels into the tissue benchmark until an expert establishes a mapping using training references. Fluid spaces and tears may have similar intensity.
+
+The JPEG pilot is downsampled to a maximum side of 1100 pixels. Its default foreground mask uses a threshold of 20/255, closing, hole filling, and the largest connected component; it is unreviewed and can omit disconnected tissue or include gaps. Supply a reviewed mask for research runs. NIfTI retains physical metadata and requires an explicit mask. No MRI bias-field correction is imposed on optical contrasts.
+
+Real-data pilot: Subject M (Moe), reflectivity section 110, from [the CMC PS-OCT publication](https://brainlife.io/pub/CMC#tab-ps-oct). JPEG input is 11000 x 8500 pixels. Public images were accessible, but the source project required membership. Expert tissue reference masks have not been located, so no real-data Dice/IoU results are reported. This pilot tests transfer of an MRI segmentation algorithm to optical images; its tissue accuracy is unvalidated.
 
 | Method | Input features | Tissue interpretation |
 | --- | --- | --- |
