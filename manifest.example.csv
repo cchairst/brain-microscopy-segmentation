@@ -1,0 +1,4 @@
+sample_id,section_id,split,image,mask,mat_key,channel
+brain01,section001,train,data/brain01_section001.mat,data/brain01_section001_labels.png,intensity,
+brain02,section001,val,data/brain02_section001.mat,data/brain02_section001_labels.png,intensity,
+brain03,section001,test,data/brain03_section001.mat,data/brain03_section001_labels.png,intensity,
