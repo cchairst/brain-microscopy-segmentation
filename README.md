@@ -1,8 +1,8 @@
 # Brain Microscopy Tissue Segmentation
 
-Develop and compare tissue segmentation methods for nonhuman primate brain microscopy, starting with polarization-sensitive optical coherence tomography (PS-OCT). This repository provides runnable **2D starter baselines and evaluation**, following the supplied project brief. LSFM, aligned 3D models, full-resolution Zarr, and deep-learning methods are planned extensions.
+Develop and compare tissue segmentation methods for nonhuman primate brain microscopy, starting with polarization-sensitive optical coherence tomography (PS-OCT). This repository provides runnable **2D starter baselines, 3D Atropos pilots, and evaluation**, following the supplied project brief. LSFM, full-resolution Zarr, and deep-learning methods are planned extensions.
 
-**Status:** K-means and random forest are tested on synthetic data. ANTs Atropos has also run on a real, downsampled Subject M reflectivity section from the CMC publication. Expert annotations, quantitative channel scaling, and cross-modality alignment remain unverified. No real-data tissue accuracy claims are made.
+**Status:** Vlad is the first active sample. Three real MRI-aligned PS-OCT NIfTI contrasts and the lab's matching MRI brain mask have been downloaded and checked. Single-contrast and three-contrast 3D Atropos pilots have run. This follows the earlier Subject M JPEG pilot. Expert tissue annotations and anatomical segmentation accuracy remain unverified.
 
 ## Quick start
 
@@ -19,6 +19,44 @@ python segmentation.py demo --output outputs/synthetic_demo
 The demo creates six independent synthetic brain-like sections, trains both methods on three samples, and evaluates two held-out samples. The fourth sample is reserved for validation. Output masks use integer class IDs; `report.json` contains section, sample, and pooled scores. High scores on this easy synthetic example are software checks, not evidence of microscopy performance.
 
 ## Methods
+
+### Vlad 3D pilot
+
+The active task follows the supplied `SegmentationProblem(3).docx`: begin with PS-OCT, adapt existing MRI segmentation methods, develop evaluation benchmarks, compare samples later, and extend to LSFM later. The first sample is **Vlad**, as requested.
+
+```bash
+pip install -r requirements-mri.txt
+# Put the source files in data/vlad (outside Git):
+# Ref_slide_deck_in_MRI.nii.gz
+# Cro_slide_deck_in_MRI.nii.gz
+# Ret_slide_deck_in_MRI.nii.gz
+# nodif_brain_mask.nii.gz
+ITK_GLOBAL_DEFAULT_NUMBER_OF_THREADS=2 OPENBLAS_NUM_THREADS=1 python vlad_volume_pilot.py --mask data/vlad/nodif_brain_mask.nii.gz --output outputs/vlad_3d_mri_mask
+```
+
+Source: CMC - Sarah H / Derivatives / Vlad / PS-OCT / Enface / Registration. The brain mask is in Vlad / MRI / exvivo / proc / data. Native grid: 170 x 200 x 112, approximately 0.4 mm spacing. The default pilot downsamples by two to 85 x 100 x 56 (approximately 0.8 mm), with identical target geometry for all contrasts. The native affine, grid, finite values, and binary mask are checked before processing. The MRI mask is intersected with positive optical reflectivity support; this is a provisional support mask, not ground truth.
+
+Two Gaussian-mixture Atropos runs use the same support and settings: reflectivity alone, then reflectivity + cross-polarization + retardance. Each contrast is clipped at its masked 1st/99th percentiles and scaled equally to 0.1..100.1. This numeric scaling avoids Atropos's absolute covariance-determinant floor on 0..1 multivariate inputs. No noise is added. The script passes seed, likelihood, and diagnostics consistently through the bundled Atropos entry point, because ANTsPy 0.6.3's multivariate wrapper drops optional kwargs. A constant seed is used.
+
+Outputs include 3D class labels, posterior maps, support mask, source hashes, settings, quality flags, and views along three voxel axes. Posterior sums, finite probabilities, label range, and mask consistency are checked at runtime. **Adjusted Rand index compares the two methods' partitions; it is not accuracy.** A dominant-class flag requires review when one class covers more than 80% of the support.
+
+The first MRI-mask pilot produced a dominant class of roughly 82% for both runs. This raises a concrete concern that intensity clustering is capturing broad signal groups rather than clean tissue types. Reference masks and review of native-resolution reflectivity/retardance are required before semantic class mapping or Dice/IoU benchmarking. Exact machine-readable diagnostics belong to each run's `report.json`.
+
+### Source inventory checked October 16 2026
+
+The lab project exposes seven named PS-OCT folders under Derivatives. Six contain data directories; **Legolas currently contains only a placeholder file**. MRI/PS-OCT coordinate agreement does not by itself establish registration accuracy.
+
+| Folder | Observed PS-OCT inputs |
+| --- | --- |
+| Vlad | Numeric MAT sections, JPEGs, Zarr/OME-Zarr, registered NIfTI; first active sample |
+| Moe | Numeric sections, JPEGs, Zarr, registration folders |
+| KQRH | Numeric sections and Zarr |
+| YoYo | Numeric cross-polarization, reflectivity, retardance sections |
+| Zebel | Numeric sections and JPEG folders |
+| Human_CX46009 | Human numeric tiles; separate species/domain, not pooled as another macaque |
+| Legolas | Placeholder only; not counted as a usable dataset |
+
+Directory listings are not a count of independent biological specimens. No LSFM count is established. Data access and contents may change.
 
 ### MRI segmentation tool baseline
 
