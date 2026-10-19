@@ -1,3 +1,0 @@
--r requirements.txt
-antspyx==0.6.3
-nibabel>=5.2,<6
