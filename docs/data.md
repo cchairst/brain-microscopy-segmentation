@@ -48,6 +48,6 @@ brainseg predict --manifest manifest.csv --model outputs/rf.joblib --split val -
 brainseg predict --manifest manifest.csv --model outputs/rf.joblib --split test --output outputs/rf_test
 ```
 
-Image inputs: numeric 2D NPY, MATLAB v4-v7.2 with an explicit `mat_key`, or 2D image files. For H x W x C images, put a zero-based channel index in the `channel` column. MATLAB v7.3/HDF5, whole 3D volumes, and Zarr are not implemented; convert or export verified 2D sections first. This code loads each section into memory, so start with downsampled sections.
+Image inputs: numeric 2D NPY, MATLAB v4-v7.2 with an explicit `mat_key`, or 2D image files. For H x W x C images, put a zero-based channel index in the `channel` column. To use several contrasts as features, list one image per contrast in the `image` column, separated by `;` (for example `ret.npy;cro.npy;ref.npy`); `mat_key` and `channel` take either one value for all images or one per image in the same order. All contrasts in a row must share a shape, and every row must use the same number of contrasts. MATLAB v7.3/HDF5, whole 3D volumes, and Zarr are not implemented; convert or export verified 2D sections first. This code loads each section into memory, so start with downsampled sections.
 
 Both initial methods require train masks; K-means itself clusters intensities without labels, but semantic cluster mapping needs training references. Prediction rows may leave `mask` empty. They generate predictions without scores. `joblib` model files can execute code: load only models you created or trust.
