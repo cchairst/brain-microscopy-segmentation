@@ -10,9 +10,9 @@ from PIL import Image
 from sklearn.metrics import confusion_matrix
 
 from brainseg import IGNORE, LABELS
-from brainseg.io import digest, load_row, read_manifest, read_mask
+from brainseg.io import digest, image_digest, load_row, read_manifest, read_mask
 from brainseg.methods.baselines import predict_array, train
-from brainseg.metrics import metrics
+from brainseg.metrics import hd95, metrics
 
 
 def run_predictions(manifest, model_path, split, output):
@@ -25,7 +25,7 @@ def run_predictions(manifest, model_path, split, output):
         raise ValueError('Evaluation samples overlap model training samples.')
     out = Path(output)
     out.mkdir(parents=True, exist_ok=True)
-    cms, sections, pooled = {}, [], np.zeros((4, 4), dtype=np.int64)
+    cms, hds, sections, pooled = {}, {}, [], np.zeros((4, 4), dtype=np.int64)
     for i, r in enumerate(selected):
         a = load_row(r)
         prediction = predict_array(artifact, a)
@@ -35,18 +35,23 @@ def run_predictions(manifest, model_path, split, output):
             'sample_id': r['sample_id'],
             'section_id': r['section_id'],
             'prediction': filename,
-            'image_sha256': digest(r['image']),
+            'image_sha256': image_digest(r['image']),
             'annotated': bool(r['mask']),
         }
         if r['mask']:
-            y = read_mask(r['mask'], a.shape)
+            y = read_mask(r['mask'], a.shape[:2])
             valid = y != IGNORE
             cm = confusion_matrix(y[valid], prediction[valid], labels=list(LABELS))
             pooled += cm
             cms.setdefault(r['sample_id'], np.zeros((4, 4), dtype=np.int64))[:] += cm
             record['metrics'] = metrics(cm)
+            record['metrics']['hd95_px'] = {LABELS[c]: hd95(prediction, y, c, valid) for c in [1, 2, 3]}
+            hds.setdefault(r['sample_id'], []).append(record['metrics']['hd95_px'])
         sections.append(record)
     samples = {s: metrics(cm) for s, cm in cms.items()}
+    for s, per_section in hds.items():  # HD95 does not pool across sections: average the section values
+        by_class = {name: [h[name] for h in per_section if h[name] is not None] for name in per_section[0]}
+        samples[s]['hd95_px'] = {name: float(np.mean(v)) if v else None for name, v in by_class.items()}
     values = [v['macro_tissue']['dice'] for v in samples.values() if v['macro_tissue']['dice'] is not None]
     report = {
         'method': artifact['method'],
@@ -58,7 +63,8 @@ def run_predictions(manifest, model_path, split, output):
         'samples': samples,
         'pooled': metrics(pooled) if cms else None,
         'mean_sample_macro_dice': float(np.mean(values)) if values else None,
-        'note': 'Undefined metrics are null. Tissue macro excludes background. Unannotated pixels (255) are ignored.',
+        'note': 'Undefined metrics are null. Tissue macro excludes background. Unannotated pixels (255) are ignored. '
+        'HD95 is in pixels; per-sample HD95 is the mean of its sections.',
     }
     (out / 'report.json').write_text(json.dumps(report, indent=2, allow_nan=False) + '\n')
     return report

@@ -74,14 +74,36 @@ def read_manifest(path):
         if identity in seen:
             raise ValueError('Duplicate sample/section row.')
         seen.add(identity)
-        for name in ['image', 'mask']:
-            if r[name]:
-                r[name] = str((path.parent / r[name]).resolve())
-        if not r['image'] or r['image'] in images:
-            raise ValueError('Every row must reference a distinct image path.')
-        images.add(r['image'])
+        if r['mask']:
+            r['mask'] = str((path.parent / r['mask']).resolve())
+        # One path per contrast, separated by ';'.
+        paths = [str((path.parent / p.strip()).resolve()) for p in r['image'].split(';') if p.strip()]
+        if not paths or len(set(paths)) < len(paths) or images & set(paths):
+            raise ValueError('Every row must reference distinct image paths.')
+        images.update(paths)
+        r['image'] = ';'.join(paths)
     return rows
 
 
+def per_image(value, n):
+    """Split a ';'-separated manifest field into one entry per image; a single entry applies to all."""
+    values = (value or '').split(';')
+    if len(values) not in (1, n):
+        raise ValueError(f'Expected 1 or {n} ";"-separated entries, got {value!r}.')
+    return values * n if len(values) == 1 else values
+
+
 def load_row(r):
-    return read_array(r['image'], r.get('mat_key', ''), r.get('channel', ''))
+    """Return the row's contrasts as an H x W x C array."""
+    paths = r['image'].split(';')
+    keys, channels = per_image(r.get('mat_key'), len(paths)), per_image(r.get('channel'), len(paths))
+    arrays = [read_array(p, k, c) for p, k, c in zip(paths, keys, channels)]
+    if len({a.shape for a in arrays}) > 1:
+        raise ValueError(f'{r["sample_id"]}/{r["section_id"]}: contrasts differ in shape.')
+    return np.stack(arrays, -1)
+
+
+def image_digest(image):
+    """Digest of a manifest `image` field: one hash, or a list for several contrasts."""
+    paths = image.split(';')
+    return digest(paths[0]) if len(paths) == 1 else [digest(p) for p in paths]

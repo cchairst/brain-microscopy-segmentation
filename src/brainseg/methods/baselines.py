@@ -11,11 +11,16 @@ from sklearn.cluster import MiniBatchKMeans
 from sklearn.ensemble import RandomForestClassifier
 
 from brainseg import LABELS
-from brainseg.io import digest, load_row, read_manifest, read_mask
+from brainseg.io import digest, image_digest, load_row, read_manifest, read_mask
 from brainseg.preprocess import normalize
 
 
 def features(a, method):
+    """Per-pixel features for an H x W x C stack, computed per contrast and concatenated."""
+    return np.concatenate([contrast_features(a[..., c], method) for c in range(a.shape[-1])], -1)
+
+
+def contrast_features(a, method):
     x = normalize(a)
     if method == 'kmeans':
         return x[..., None]
@@ -33,13 +38,15 @@ def train(manifest, method, output, seed=42, pixels=20000):
     if not train_rows:
         raise ValueError('No training rows.')
     rng = np.random.default_rng(seed)
-    xs, ys, provenance = [], [], []
+    xs, ys, provenance, contrasts = [], [], [], set()
     for r in train_rows:
         if not r['mask']:
             raise ValueError('Training requires expert masks; clustering uses them to map clusters to tissue IDs.')
         a = load_row(r)
-        y = read_mask(r['mask'], a.shape).ravel()
-        f = features(a, method).reshape(-1, 1 if method == 'kmeans' else 6)
+        contrasts.add(a.shape[-1])
+        y = read_mask(r['mask'], a.shape[:2]).ravel()
+        f = features(a, method)
+        f = f.reshape(-1, f.shape[-1])
         # Balanced sampling per section; ignore unannotated/artifact pixels.
         ids = []
         for label in LABELS:
@@ -54,10 +61,12 @@ def train(manifest, method, output, seed=42, pixels=20000):
             {
                 'sample_id': r['sample_id'],
                 'section_id': r['section_id'],
-                'image_sha256': digest(r['image']),
+                'image_sha256': image_digest(r['image']),
                 'mask_sha256': digest(r['mask']),
             }
         )
+    if len(contrasts) > 1:
+        raise ValueError('All training rows must have the same number of contrasts.')
     x, y = np.concatenate(xs), np.concatenate(ys)
     if not {1, 2, 3} <= set(np.unique(y)):
         raise ValueError('Training annotations must include all three target tissue classes.')
@@ -80,6 +89,7 @@ def train(manifest, method, output, seed=42, pixels=20000):
         'method': method,
         'mapping': mapping,
         'labels': LABELS,
+        'contrasts': contrasts.pop(),
         'train_sample_ids': sorted({r['sample_id'] for r in train_rows}),
         'provenance': provenance,
         'manifest_sha256': digest(manifest),
@@ -94,10 +104,12 @@ def train(manifest, method, output, seed=42, pixels=20000):
 
 
 def predict_array(artifact, a):
+    if a.shape[-1] != artifact.get('contrasts', 1):
+        raise ValueError(f'Model expects {artifact.get("contrasts", 1)} contrasts; got {a.shape[-1]}.')
     f = features(a, artifact['method'])
     flat = f.reshape(-1, f.shape[-1])
     # Chunk classifier prediction to limit transient prediction allocations.
     pred = np.concatenate([artifact['model'].predict(flat[i : i + 65536]) for i in range(0, len(flat), 65536)])
     if artifact['mapping'] is not None:
         pred = np.asarray(artifact['mapping'])[pred]
-    return pred.reshape(a.shape).astype(np.uint8)
+    return pred.reshape(a.shape[:2]).astype(np.uint8)

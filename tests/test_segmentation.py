@@ -7,7 +7,8 @@ from scipy.io import savemat
 
 from brainseg.benchmark import demo, run_predictions
 from brainseg.io import read_array, read_manifest, read_mask
-from brainseg.metrics import metrics
+from brainseg.methods.baselines import train
+from brainseg.metrics import hd95, metrics
 from brainseg.preprocess import normalize
 
 
@@ -68,3 +69,43 @@ def test_end_to_end_and_leakage(tmp_path):
     write_manifest(manifest, original)
     with pytest.raises(ValueError):
         read_manifest(manifest)
+
+
+def test_hd95_volume_fractions_and_nan_normalize():
+    a = np.zeros((40, 40), int)
+    b = np.zeros((40, 40), int)
+    a[10:20, 10:20] = 1
+    b[13:23, 10:20] = 1
+    assert hd95(a, b, 1) == 3.0
+    assert hd95(a, b, 2) is None
+    cm = np.zeros((4, 4), int)
+    cm[1, 1] = 2
+    cm[2, 2] = 1
+    cm[3, 2] = 1
+    vf = metrics(cm)['volume_fraction']
+    assert vf['reference'] == {'gray_matter': 0.5, 'white_matter': 0.25, 'fluid_space': 0.25}
+    assert vf['prediction']['white_matter'] == 0.5
+    out = normalize(np.array([np.nan, 0, 1, 2]))
+    assert np.isnan(out[0])
+    assert np.nanmin(out) == pytest.approx(0) and np.nanmax(out) == pytest.approx(1)
+
+
+def test_multicontrast_rows(tmp_path):
+    demo(tmp_path)
+    with (tmp_path / 'manifest.csv').open(newline='') as f:
+        rows = list(csv.DictReader(f))
+    for r in rows:  # second contrast: an inverted copy of the first
+        second = r['image'].replace('.npy', '_inv.npy')
+        np.save(tmp_path / second, 1 - np.load(tmp_path / r['image']))
+        r['image'] = f'{r["image"]};{second}'
+    write_manifest(tmp_path / 'multi.csv', rows)
+    artifact = train(tmp_path / 'multi.csv', 'rf', tmp_path / 'multi.joblib', pixels=4000)
+    assert artifact['contrasts'] == 2
+    report = run_predictions(tmp_path / 'multi.csv', tmp_path / 'multi.joblib', 'test', tmp_path / 'multi_out')
+    assert report['mean_sample_macro_dice'] > 0.9
+    section = report['sections'][0]
+    assert len(section['image_sha256']) == 2
+    assert section['metrics']['hd95_px']['white_matter'] is not None
+    # A single-contrast model must reject two-contrast input.
+    with pytest.raises(ValueError):
+        run_predictions(tmp_path / 'multi.csv', tmp_path / 'rf.joblib', 'test', tmp_path / 'bad')
