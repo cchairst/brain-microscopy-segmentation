@@ -18,6 +18,8 @@ brainseg demo --output outputs/synthetic_demo
 
 The demo creates six independent synthetic brain-like sections, trains both methods on three samples, and evaluates two held-out samples. The fourth sample is reserved for validation. Output masks use integer class IDs; `report.json` contains section, sample, and pooled scores. High scores on this easy synthetic example are software checks, not evidence of microscopy performance.
 
+Data exploration: `notebooks/01_explore_contrasts.ipynb` compares the four contrasts on raw and registered sections from Moe and Vlad (findings in [docs/data_notes.md](docs/data_notes.md)). Run `nbstripout --install` once after installing so notebook outputs, which are images of lab data, are never committed.
+
 ## Commands
 
 | Command | What it does |
@@ -48,6 +50,8 @@ docs/
   methods.md       methods, benchmark outputs, research phases
   data.md          source inventory, labels and annotations, using real data
   vlad_pilot.md    Vlad pilot results
+  data_notes.md    file layout, value quirks and artifacts found while exploring
+notebooks/         exploration and figures; import from brainseg
 ```
 
 ## Labels
@@ -64,7 +68,7 @@ Details, annotation rules and the deferred dark-tissue review are in [docs/data.
 
 ## Documentation
 
-- [Methods](docs/methods.md), [data and labels](docs/data.md), [Vlad pilot](docs/vlad_pilot.md)
+- [Methods](docs/methods.md), [data and labels](docs/data.md), [Vlad pilot](docs/vlad_pilot.md), [data notes](docs/data_notes.md)
 - [Brainlife project access and data organization](https://brainlife.io/docs/user/project/)
 - [SciPy MATLAB reader](https://docs.scipy.org/doc/scipy/reference/generated/scipy.io.loadmat.html)
 - [MiniBatchKMeans](https://scikit-learn.org/stable/modules/generated/sklearn.cluster.MiniBatchKMeans.html)

@@ -17,7 +17,7 @@ dependencies = [
 
 [project.optional-dependencies]
 mri = ["antspyx==0.6.3", "nibabel>=5.2,<6", "matplotlib"]
-dev = ["pytest", "ruff"]
+dev = ["pytest", "ruff", "jupyterlab", "matplotlib", "nibabel>=5.2,<6", "nbstripout"]
 
 [project.scripts]
 brainseg = "brainseg.cli:main"
