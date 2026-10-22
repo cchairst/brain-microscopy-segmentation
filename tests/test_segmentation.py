@@ -3,13 +3,14 @@ from pathlib import Path
 
 import numpy as np
 import pytest
+from PIL import Image
 from scipy.io import savemat
 
 from brainseg.benchmark import demo, run_predictions
 from brainseg.io import read_array, read_manifest, read_mask
 from brainseg.methods.baselines import train
 from brainseg.metrics import hd95, metrics
-from brainseg.preprocess import normalize
+from brainseg.preprocess import normalize, orientation
 
 
 def test_exact_metrics_and_absent_classes():
@@ -109,3 +110,32 @@ def test_multicontrast_rows(tmp_path):
     # A single-contrast model must reject two-contrast input.
     with pytest.raises(ValueError):
         run_predictions(tmp_path / 'multi.csv', tmp_path / 'rf.joblib', 'test', tmp_path / 'bad')
+
+
+def test_raw_section_values(tmp_path):
+    p = tmp_path / 'raw.npy'
+    np.save(p, np.array([[np.nan, 1.0], [2.0, 3.0]]))
+    assert np.isnan(read_array(p)[0, 0])
+    np.save(p, np.array([[np.inf, 1.0], [2.0, 3.0]]))
+    with pytest.raises(ValueError):
+        read_array(p)
+    np.save(p, np.ones((2, 2), complex))
+    with pytest.raises(ValueError, match='orientation'):
+        read_array(p)
+    theta = np.array([-1.5, -0.3, 0.0, 0.7, 1.5])
+    np.testing.assert_allclose(orientation(3.0 * np.exp(2j * theta)), theta)
+
+
+def test_nan_pixels_are_ignored_and_predicted_background(tmp_path):
+    demo(tmp_path)
+    for name in ['brain0.npy', 'brain4.npy']:  # one train and one test section lose their left edge
+        a = np.load(tmp_path / name)
+        a[:, :20] = np.nan
+        np.save(tmp_path / name, a)
+    train(tmp_path / 'manifest.csv', 'rf', tmp_path / 'nan.joblib', pixels=4000)
+    report = run_predictions(tmp_path / 'manifest.csv', tmp_path / 'nan.joblib', 'test', tmp_path / 'nan_out')
+    assert report['mean_sample_macro_dice'] > 0.9
+    first = report['sections'][0]
+    assert first['sample_id'] == 'synthetic_brain4'
+    prediction = np.asarray(Image.open(tmp_path / 'nan_out' / first['prediction']))
+    assert (prediction[:, :20] == 0).all()

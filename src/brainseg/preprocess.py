@@ -13,6 +13,14 @@ def scale(a, lo, hi):
     return np.clip((a - lo) / max(float(hi - lo), 1e-6), 0, 1)
 
 
+def orientation(z):
+    """In-plane fiber angle in radians, [-pi/2, pi/2], from the complex optic-axis value (TEnAO).
+
+    The pipeline averages in the doubled-angle domain, so the angle is half the phase.
+    """
+    return np.angle(z) / 2
+
+
 def normalize(a, mask=None):
     """Clip to the 1st/99th percentiles (inside `mask` if given) and scale to [0, 1]. NaNs are kept."""
     a = a.astype(np.float32)
