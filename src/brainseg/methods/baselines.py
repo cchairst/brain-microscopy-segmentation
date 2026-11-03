@@ -53,7 +53,7 @@ def train(manifest, method, output, seed=42, pixels=20000):
         for label in LABELS:
             candidates = np.flatnonzero(y == label)
             if len(candidates):
-                ids.extend(rng.choice(candidates, min(len(candidates), pixels // 4), replace=False))
+                ids.extend(rng.choice(candidates, min(len(candidates), pixels // len(LABELS)), replace=False))
         if not ids:
             raise ValueError('Training section contains no labeled pixels.')
         xs.append(f[ids])
@@ -73,13 +73,13 @@ def train(manifest, method, output, seed=42, pixels=20000):
         raise ValueError('Training annotations must include all three target tissue classes.')
     mapping = None
     if method == 'kmeans':
-        model = MiniBatchKMeans(n_clusters=4, random_state=seed, n_init=3, batch_size=1024)
+        model = MiniBatchKMeans(n_clusters=len(LABELS), random_state=seed, n_init=3, batch_size=1024)
         model.fit(x)
         clusters = model.predict(x)
         mapping = []
-        for k in range(4):
+        for k in range(len(LABELS)):
             members = y[clusters == k]
-            mapping.append(int(np.bincount(members, minlength=4).argmax()) if len(members) else 0)
+            mapping.append(int(np.bincount(members, minlength=len(LABELS)).argmax()) if len(members) else 0)
     else:
         model = RandomForestClassifier(
             n_estimators=100, max_depth=20, min_samples_leaf=2, class_weight='balanced', n_jobs=-1, random_state=seed

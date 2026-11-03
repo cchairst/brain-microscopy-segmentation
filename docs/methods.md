@@ -48,9 +48,9 @@ Intensity is clipped and scaled using each section's 1st/99th percentiles. This 
 
 ## Benchmark outputs
 
-- Per-class Dice, IoU, precision, recall, support, and a 4 x 4 confusion matrix in ID order 0,1,2,3.
+- Per-class Dice, IoU, precision, recall, support, and a 5 x 5 confusion matrix in ID order 0-4.
 - Per-class HD95 (95th-percentile symmetric surface distance) in pixels for each section; per-brain HD95 is the mean of its sections. Tissue volume fractions (classes 1-3) for reference and prediction.
-- Tissue macro metrics exclude background but include mistakes to/from background.
+- Tissue macro metrics and volume fractions cover gray matter, white matter and fluid; they exclude background and damage but include mistakes to/from them.
 - Pixels marked 255 in the reference are ignored. Undefined ratios are JSON `null`; macros average defined classes. Always inspect class support before comparing scores.
 - Per-brain metrics pool that brain's annotated sections; mean sample macro Dice weights each annotated brain equally. Pooled scores also appear and can favor larger samples.
 - Model metadata stores train sample IDs, train image/mask hashes, manifest hash, seed, sampling budget, and dependency versions. Reports store image/model/manifest hashes. Preserve both the model and the original manifest with each run.

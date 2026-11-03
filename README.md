@@ -58,11 +58,14 @@ notebooks/         exploration and figures; import from brainseg
 
 | ID | Meaning |
 | --- | --- |
-| 0 | Black space / background outside tissue |
+| 0 | Background: everything outside the tissue, including the gel in the sulci and around the brain |
 | 1 | Gray matter |
 | 2 | White matter |
-| 3 | Fluid-filled space |
-| 255 | Unannotated or uncertain pixels, including excluded artifacts |
+| 3 | Fluid: the ventricles |
+| 4 | Damage: tears, folds and missing tissue |
+| 255 | Unannotated or uncertain pixels |
+
+Gel in the sulci and around the brain is background; blood vessels and tile seams take the label of the surrounding tissue.
 
 Details, annotation rules and the deferred dark-tissue review are in [docs/data.md](docs/data.md).
 

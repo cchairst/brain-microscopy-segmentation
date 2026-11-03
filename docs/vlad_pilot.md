@@ -25,7 +25,7 @@ The report JSON records input hashes, dependency versions, preprocessing, method
 
 ## Next work
 
-The target for Vlad and every subsequent sample is four semantic categories: 0 black space/background outside tissue, 1 gray matter, 2 white matter, and 3 fluid-filled spaces. Value 255 is reserved for unannotated or uncertain reference regions and excluded artifacts. These target IDs do not map directly to the current Atropos output IDs.
+The target labels for Vlad and every subsequent sample are defined in [data.md](data.md#labels-and-annotations): 0 background, 1 gray matter, 2 white matter, 3 fluid, 4 damage, and 255 for unannotated or uncertain pixels. These target IDs do not map directly to the current Atropos output IDs.
 
 The project owner noted dark tissue associated with its direction/orientation. Inspection of examples is deferred. Until reviewed, do not use darkness alone to assign fluid or background; uncertain reference regions stay at 255. The current positive-reflectivity support can exclude dark or zero-valued tissue, and output zero means outside the pilot support, not verified anatomical background. Revisit support and tissue mapping during the deferred review using aligned contrasts and anatomical context.
 

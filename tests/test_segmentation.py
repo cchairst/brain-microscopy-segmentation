@@ -14,7 +14,8 @@ from brainseg.preprocess import normalize, orientation
 
 
 def test_exact_metrics_and_absent_classes():
-    cm = np.array([[5, 0, 0, 0], [0, 3, 1, 0], [0, 1, 3, 0], [0, 0, 0, 0]])
+    cm = np.zeros((5, 5), int)
+    cm[:4, :4] = [[5, 0, 0, 0], [0, 3, 1, 0], [0, 1, 3, 0], [0, 0, 0, 0]]
     m = metrics(cm)
     assert m['per_class']['gray_matter']['dice'] == pytest.approx(0.75)
     assert m['per_class']['white_matter']['iou'] == pytest.approx(0.6)
@@ -23,7 +24,7 @@ def test_exact_metrics_and_absent_classes():
 
 
 def test_background_false_positives_count():
-    cm = np.zeros((4, 4), int)
+    cm = np.zeros((5, 5), int)
     cm[0, 1] = 2
     cm[1, 1] = 2
     assert metrics(cm)['per_class']['gray_matter']['precision'] == pytest.approx(0.5)
@@ -79,7 +80,7 @@ def test_hd95_volume_fractions_and_nan_normalize():
     b[13:23, 10:20] = 1
     assert hd95(a, b, 1) == 3.0
     assert hd95(a, b, 2) is None
-    cm = np.zeros((4, 4), int)
+    cm = np.zeros((5, 5), int)
     cm[1, 1] = 2
     cm[2, 2] = 1
     cm[3, 2] = 1
@@ -139,3 +140,39 @@ def test_nan_pixels_are_ignored_and_predicted_background(tmp_path):
     assert first['sample_id'] == 'synthetic_brain4'
     prediction = np.asarray(Image.open(tmp_path / 'nan_out' / first['prediction']))
     assert (prediction[:, :20] == 0).all()
+
+
+def test_damage_is_scored_but_not_tissue():
+    cm = np.zeros((5, 5), int)
+    cm[1, 1] = 4
+    cm[2, 2] = 4
+    cm[3, 3] = 2
+    cm[4, 4] = 3
+    cm[4, 1] = 1  # one damaged pixel predicted as gray matter
+    m = metrics(cm)
+    assert m['per_class']['damage']['dice'] == pytest.approx(6 / 7)
+    assert m['per_class']['damage']['recall'] == pytest.approx(0.75)
+    assert m['macro_tissue']['precision'] == pytest.approx((0.8 + 1 + 1) / 3)  # damage lowers GM precision only
+    assert m['volume_fraction']['reference'] == {'gray_matter': 0.4, 'white_matter': 0.4, 'fluid_space': 0.2}
+    pred = np.zeros((40, 40), int)
+    ref = np.zeros((40, 40), int)
+    pred[10:20, 10:20] = 4
+    ref[13:23, 10:20] = 4
+    assert hd95(pred, ref, 4) == 3.0
+
+
+def test_damage_masks_train_and_predict(tmp_path):
+    demo(tmp_path)
+    for i in [0, 4]:  # a damaged patch in one train and one test reference
+        a = np.load(tmp_path / f'brain{i}.npy')
+        a[60:70, 40:56] = 0.6
+        np.save(tmp_path / f'brain{i}.npy', a)
+        mask = np.asarray(Image.open(tmp_path / f'brain{i}_mask.png')).copy()
+        mask[60:70, 40:56] = 4
+        Image.fromarray(mask).save(tmp_path / f'brain{i}_mask.png')
+    train(tmp_path / 'manifest.csv', 'rf', tmp_path / 'dmg.joblib', pixels=5000)
+    report = run_predictions(tmp_path / 'manifest.csv', tmp_path / 'dmg.joblib', 'test', tmp_path / 'dmg_out')
+    first = report['sections'][0]['metrics']
+    assert len(first['confusion_matrix']) == 5
+    assert first['per_class']['damage']['support'] == 160
+    assert 'damage' in first['hd95_px'] and 'damage' not in first['volume_fraction']['reference']
