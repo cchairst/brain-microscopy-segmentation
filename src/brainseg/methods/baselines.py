@@ -10,7 +10,7 @@ from scipy.ndimage import gaussian_filter, uniform_filter
 from sklearn.cluster import MiniBatchKMeans
 from sklearn.ensemble import RandomForestClassifier
 
-from brainseg import LABELS
+from brainseg import IGNORE, LABELS
 from brainseg.io import digest, image_digest, load_row, read_manifest, read_mask
 from brainseg.preprocess import normalize
 
@@ -21,7 +21,7 @@ def features(a, method):
 
 
 def contrast_features(a, method):
-    x = normalize(a)
+    x = np.nan_to_num(normalize(a))  # NaN (outside the imaged area) -> 0 so filters do not spread it
     if method == 'kmeans':
         return x[..., None]
     mean = uniform_filter(x, size=5)
@@ -45,6 +45,7 @@ def train(manifest, method, output, seed=42, pixels=20000):
         a = load_row(r)
         contrasts.add(a.shape[-1])
         y = read_mask(r['mask'], a.shape[:2]).ravel()
+        y[np.isnan(a).any(-1).ravel()] = IGNORE  # never train on pixels outside the imaged area
         f = features(a, method)
         f = f.reshape(-1, f.shape[-1])
         # Balanced sampling per section; ignore unannotated/artifact pixels.
@@ -112,4 +113,5 @@ def predict_array(artifact, a):
     pred = np.concatenate([artifact['model'].predict(flat[i : i + 65536]) for i in range(0, len(flat), 65536)])
     if artifact['mapping'] is not None:
         pred = np.asarray(artifact['mapping'])[pred]
+    pred[np.isnan(a).any(-1).ravel()] = 0  # outside the imaged area is background
     return pred.reshape(a.shape[:2]).astype(np.uint8)
