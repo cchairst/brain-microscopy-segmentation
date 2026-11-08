@@ -25,7 +25,8 @@ def run_predictions(manifest, model_path, split, output):
         raise ValueError('Evaluation samples overlap model training samples.')
     out = Path(output)
     out.mkdir(parents=True, exist_ok=True)
-    cms, hds, sections, pooled = {}, {}, [], np.zeros((4, 4), dtype=np.int64)
+    n = len(LABELS)
+    cms, hds, sections, pooled = {}, {}, [], np.zeros((n, n), dtype=np.int64)
     for i, r in enumerate(selected):
         a = load_row(r)
         prediction = predict_array(artifact, a)
@@ -43,9 +44,9 @@ def run_predictions(manifest, model_path, split, output):
             valid = y != IGNORE
             cm = confusion_matrix(y[valid], prediction[valid], labels=list(LABELS))
             pooled += cm
-            cms.setdefault(r['sample_id'], np.zeros((4, 4), dtype=np.int64))[:] += cm
+            cms.setdefault(r['sample_id'], np.zeros((n, n), dtype=np.int64))[:] += cm
             record['metrics'] = metrics(cm)
-            record['metrics']['hd95_px'] = {LABELS[c]: hd95(prediction, y, c, valid) for c in [1, 2, 3]}
+            record['metrics']['hd95_px'] = {LABELS[c]: hd95(prediction, y, c, valid) for c in LABELS if c}
             hds.setdefault(r['sample_id'], []).append(record['metrics']['hd95_px'])
         sections.append(record)
     samples = {s: metrics(cm) for s, cm in cms.items()}
@@ -63,7 +64,8 @@ def run_predictions(manifest, model_path, split, output):
         'samples': samples,
         'pooled': metrics(pooled) if cms else None,
         'mean_sample_macro_dice': float(np.mean(values)) if values else None,
-        'note': 'Undefined metrics are null. Tissue macro excludes background. Unannotated pixels (255) are ignored. '
+        'note': 'Undefined metrics are null. Tissue macro and volume fractions cover gray matter, white matter '
+        'and fluid; damage is scored per class only. Unannotated pixels (255) are ignored. '
         'HD95 is in pixels; per-sample HD95 is the mean of its sections.',
     }
     (out / 'report.json').write_text(json.dumps(report, indent=2, allow_nan=False) + '\n')

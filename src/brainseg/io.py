@@ -52,7 +52,7 @@ def read_array(path, key='', channel=''):
 def read_mask(path, shape):
     a = read_array(path)
     if a.shape != shape or not np.isin(a, list(LABELS) + [IGNORE]).all():
-        raise ValueError('Mask must match the image shape and contain only IDs 0,1,2,3,255.')
+        raise ValueError(f'Mask must match the image shape and contain only IDs {sorted(LABELS)} or {IGNORE}.')
     return a.astype(np.uint8)
 
 

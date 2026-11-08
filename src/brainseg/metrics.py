@@ -7,6 +7,7 @@ from brainseg import LABELS
 
 
 def metrics(cm):
+    """Per-class scores for every label; tissue macro averages and volume fractions use classes 1-3."""
     records = {}
     for c, name in LABELS.items():
         tp = int(cm[c, c])
