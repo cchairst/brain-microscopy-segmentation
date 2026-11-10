@@ -26,6 +26,7 @@ Data exploration: `notebooks/01_explore_contrasts.ipynb` compares the four contr
 | --- | --- |
 | `brainseg train` | Train the k-means or random forest baseline on a manifest's train rows |
 | `brainseg predict` | Predict a manifest split and score it against reference masks |
+| `brainseg segment` | Unsupervised classical segmentation (Otsu, GMM or k-means) of a manifest split, scored where masks exist |
 | `brainseg demo` | Synthetic end-to-end software check |
 | `brainseg atropos` | ANTs Atropos intensity classes on a 2D section or 3D NIfTI (needs `.[mri]`) |
 | `brainseg vlad-pilot` | Single- vs three-contrast 3D Atropos on MRI-aligned Vlad volumes (needs `.[mri]`) |
@@ -42,6 +43,7 @@ src/brainseg/
   benchmark.py     predict + score a manifest split; synthetic demo
   methods/
     baselines.py   k-means and random forest pixel classifiers
+    classical.py   unsupervised Otsu/GMM/k-means segmentation with morphological cleanup
     atropos.py     ANTs Atropos on one section or volume
   vlad_pilot.py    Vlad 3D Atropos pilot
   cli.py           brainseg command
