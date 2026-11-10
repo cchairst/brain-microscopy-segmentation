@@ -48,22 +48,22 @@ Intensity is clipped and scaled using each section's 1st/99th percentiles. This 
 
 ## Classical (unsupervised) segmentation
 
-`brainseg segment` labels each section of a manifest split without training labels and scores it like `brainseg predict` wherever a reference mask exists. List the contrasts in each row's `image` field and point `--retardance` and `--reflectivity` at them (defaults: first and last, e.g. `ret.npy;cro.npy;ref.npy`).
+`brainseg segment` labels each section of a manifest split without training labels and scores it like `brainseg predict` wherever a reference mask exists. List the contrasts in each row's `image` field and point `--retardance` and `--reflectivity` at them (defaults: first and last, e.g. `ret.npy;cro.npy;ref.npy`). Areas are in mm^2 and converted with `--pixel-size` (default 0.055 mm, the 10x downsampled sections; use 0.0055 for full resolution).
 
 ```bash
 brainseg segment --manifest manifest.csv --split test --method gmm --output outputs/gmm_test
 ```
 
-1. **Tissue:** Otsu threshold on reflectivity, computed over imaged pixels only (NaN and zero-valued pixels outside the scan are excluded so they cannot drag the threshold into the gel). Tissue islands smaller than `--min-size` pixels are dropped.
-2. **Fluid:** holes enclosed by tissue of at least `--min-fluid` pixels. Smaller holes, such as vessels, are filled with the surrounding tissue label, matching the labeling rules.
-3. **Gray/white split** inside the tissue, after rescaling each contrast to the tissue's own 1st/99th percentiles: `otsu` thresholds retardance; `gmm` and `kmeans` fit two clusters on the `--features` contrasts (default retardance only) using at most 200,000 sampled pixels. White matter is the higher-retardance group.
-4. **Cleanup:** white or gray islands smaller than `--min-size` pixels are merged into the other class.
+1. **Tissue:** Otsu threshold on reflectivity, computed over imaged pixels only (NaN and zero-valued pixels outside the scan are excluded so they cannot drag the threshold into the gel). Tissue islands smaller than `--min-area` (default 0.2 mm^2) are dropped. A section with no imaged pixels or no tissue is all background.
+2. **Fluid:** imaged holes enclosed by tissue of at least `--min-fluid-area` (default 1.2 mm^2). Smaller holes, such as vessels, are filled with the surrounding tissue label, matching the labeling rules. Unimaged pixels (NaN, zero) stay background even when enclosed, as in `brainseg predict`.
+3. **Gray/white split** inside the tissue, after rescaling each contrast to the tissue's own 1st/99th percentiles: `otsu` thresholds retardance; `gmm` and `kmeans` fit two clusters on the `--features` contrasts (default retardance only; rejected for `otsu`) using at most 200,000 sampled pixels. White matter is the higher-retardance group.
+4. **Cleanup:** white or gray islands smaller than `--min-area` are merged into the other class.
 
-Report `settings` record the method and every parameter. Damage (4) is not predicted.
+Report `settings` record the method and every parameter, defaults included. Contrast indices are checked against the number of images per row. Damage (4) is not predicted.
 
 **Feature choice (exploration on 10 low-res sections per subject, no labels yet).** On retardance alone all three variants give stable white-matter fractions (Otsu and k-means 15-47% of tissue; GMM up to about 15 points higher because it allows unequal class spreads). Adding cross-polarization, or reflectivity, makes clustering split along variation unrelated to gray/white on Moe (91-98% "white"), so the default clusters on retardance only. `--features 0,1` reproduces the comparison; it is a channel ablation to repeat once reference labels exist.
 
-**Known limitations.** Enclosed gel gaps (for example between cerebellar folia) are labeled fluid when larger than `--min-fluid`. `--min-size` and `--min-fluid` are in pixels and default to values for the 10x downsampled sections (55 um); scale them by about 100 for full resolution. GMM is unstable on nearly empty end sections.
+**Known limitations.** Enclosed gel gaps (for example between cerebellar folia) are labeled fluid when larger than `--min-fluid-area`. The area defaults were chosen by eye on low-res sections and should be tuned against reference labels. GMM is unstable on nearly empty end sections.
 
 ## Benchmark outputs
 

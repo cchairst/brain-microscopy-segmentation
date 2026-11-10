@@ -1,6 +1,7 @@
 """Evaluate a trained model on a manifest split, and a synthetic end-to-end demo."""
 
 import csv
+import inspect
 import json
 from pathlib import Path
 
@@ -31,15 +32,10 @@ def run_predictions(manifest, model_path, split, output):
 
 
 def run_classical(manifest, split, output, method='gmm', **settings):
-    """Segment a manifest split with an unsupervised classical method and score it."""
-    return evaluate(
-        manifest,
-        split,
-        output,
-        method,
-        lambda a: segment(a, method, **settings),
-        settings={'method': method, **settings},
-    )
+    """Segment a manifest split with an unsupervised classical method and score it; record every setting."""
+    defaults = {k: p.default for k, p in inspect.signature(segment).parameters.items() if k != 'a'}
+    settings = {**defaults, **settings, 'method': method}
+    return evaluate(manifest, split, output, method, lambda a: segment(a, **settings), settings=settings)
 
 
 def evaluate(manifest, split, output, method, predict, model_sha256=None, train_sample_ids=(), settings=None):

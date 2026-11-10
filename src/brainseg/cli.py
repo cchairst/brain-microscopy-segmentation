@@ -3,6 +3,8 @@
 import argparse
 import json
 
+from brainseg.methods.classical import METHODS
+
 
 def main(argv=None):
     parser = argparse.ArgumentParser(prog='brainseg', description='Brain microscopy tissue segmentation.')
@@ -27,16 +29,17 @@ def main(argv=None):
     p.add_argument('--manifest', required=True)
     p.add_argument('--split', choices=['train', 'val', 'test'], default='test')
     p.add_argument('--output', required=True)
-    p.add_argument('--method', choices=['otsu', 'gmm', 'kmeans'], default='gmm', help='Gray/white split')
+    p.add_argument('--method', choices=METHODS, default='gmm', help='Gray/white split')
     p.add_argument('--retardance', type=int, default=0, help='Index of the retardance image in each row')
     p.add_argument('--reflectivity', type=int, default=-1, help='Index of the reflectivity image in each row')
     p.add_argument(
         '--features',
         type=lambda s: [int(i) for i in s.split(',')],
-        help='Comma-separated image indices to cluster on (default: retardance only)',
+        help='Comma-separated image indices to cluster on, gmm/kmeans only (default: retardance only)',
     )
-    p.add_argument('--min-size', type=int, default=64, help='Smallest tissue or gray/white island kept, in pixels')
-    p.add_argument('--min-fluid', type=int, default=400, help='Smallest enclosed hole labeled fluid, in pixels')
+    p.add_argument('--pixel-size', type=float, default=0.055, help='Pixel size in mm (0.055 for 10x low-res sections)')
+    p.add_argument('--min-area', type=float, default=0.2, help='Smallest tissue or gray/white island kept, in mm^2')
+    p.add_argument('--min-fluid-area', type=float, default=1.2, help='Smallest enclosed hole labeled fluid, in mm^2')
     p.add_argument('--seed', type=int, default=0)
 
     p = sub.add_parser('demo', help='Synthetic end-to-end software check.')
@@ -83,8 +86,9 @@ def main(argv=None):
             retardance=args.retardance,
             reflectivity=args.reflectivity,
             features=args.features,
-            min_size=args.min_size,
-            min_fluid=args.min_fluid,
+            pixel_size=args.pixel_size,
+            min_area=args.min_area,
+            min_fluid_area=args.min_fluid_area,
             seed=args.seed,
         )
         print(f'Report saved to {args.output}/report.json; mean sample Dice: {report["mean_sample_macro_dice"]}')
