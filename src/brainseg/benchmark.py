@@ -12,16 +12,43 @@ from sklearn.metrics import confusion_matrix
 from brainseg import IGNORE, LABELS
 from brainseg.io import digest, image_digest, load_row, read_manifest, read_mask
 from brainseg.methods.baselines import predict_array, train
+from brainseg.methods.classical import segment
 from brainseg.metrics import hd95, metrics
 
 
 def run_predictions(manifest, model_path, split, output):
-    rows = read_manifest(manifest)
+    """Predict a manifest split with a trained model and score it."""
     artifact = joblib.load(model_path)  # Only load trusted artifacts; joblib can execute code.
+    return evaluate(
+        manifest,
+        split,
+        output,
+        artifact['method'],
+        lambda a: predict_array(artifact, a),
+        model_sha256=digest(model_path),
+        train_sample_ids=artifact['train_sample_ids'],
+    )
+
+
+def run_classical(manifest, split, output, method='gmm', **settings):
+    """Segment a manifest split with an unsupervised classical method and score it."""
+    return evaluate(
+        manifest,
+        split,
+        output,
+        method,
+        lambda a: segment(a, method, **settings),
+        settings={'method': method, **settings},
+    )
+
+
+def evaluate(manifest, split, output, method, predict, model_sha256=None, train_sample_ids=(), settings=None):
+    """Run `predict` on each H x W x C section of a split, save label PNGs, and score annotated sections."""
+    rows = read_manifest(manifest)
     selected = [r for r in rows if r['split'] == split]
     if not selected:
         raise ValueError(f'No {split} rows.')
-    if split != 'train' and {r['sample_id'] for r in selected} & set(artifact['train_sample_ids']):
+    if split != 'train' and {r['sample_id'] for r in selected} & set(train_sample_ids):
         raise ValueError('Evaluation samples overlap model training samples.')
     out = Path(output)
     out.mkdir(parents=True, exist_ok=True)
@@ -29,7 +56,7 @@ def run_predictions(manifest, model_path, split, output):
     cms, hds, sections, pooled = {}, {}, [], np.zeros((n, n), dtype=np.int64)
     for i, r in enumerate(selected):
         a = load_row(r)
-        prediction = predict_array(artifact, a)
+        prediction = predict(a)
         filename = f'{i:05d}_labels.png'
         Image.fromarray(prediction).save(out / filename)
         record = {
@@ -55,9 +82,9 @@ def run_predictions(manifest, model_path, split, output):
         samples[s]['hd95_px'] = {name: float(np.mean(v)) if v else None for name, v in by_class.items()}
     values = [v['macro_tissue']['dice'] for v in samples.values() if v['macro_tissue']['dice'] is not None]
     report = {
-        'method': artifact['method'],
+        'method': method,
         'split': split,
-        'model_sha256': digest(model_path),
+        'model_sha256': model_sha256,
         'manifest_sha256': digest(manifest),
         'label_ids': LABELS,
         'sections': sections,
@@ -68,6 +95,8 @@ def run_predictions(manifest, model_path, split, output):
         'and fluid; damage is scored per class only. Unannotated pixels (255) are ignored. '
         'HD95 is in pixels; per-sample HD95 is the mean of its sections.',
     }
+    if settings is not None:
+        report['settings'] = settings
     (out / 'report.json').write_text(json.dumps(report, indent=2, allow_nan=False) + '\n')
     return report
 

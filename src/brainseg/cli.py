@@ -21,6 +21,24 @@ def main(argv=None):
     p.add_argument('--split', choices=['train', 'val', 'test'], default='test')
     p.add_argument('--output', required=True)
 
+    p = sub.add_parser(
+        'segment', help='Unsupervised classical segmentation of a manifest split, scored where masks exist.'
+    )
+    p.add_argument('--manifest', required=True)
+    p.add_argument('--split', choices=['train', 'val', 'test'], default='test')
+    p.add_argument('--output', required=True)
+    p.add_argument('--method', choices=['otsu', 'gmm', 'kmeans'], default='gmm', help='Gray/white split')
+    p.add_argument('--retardance', type=int, default=0, help='Index of the retardance image in each row')
+    p.add_argument('--reflectivity', type=int, default=-1, help='Index of the reflectivity image in each row')
+    p.add_argument(
+        '--features',
+        type=lambda s: [int(i) for i in s.split(',')],
+        help='Comma-separated image indices to cluster on (default: retardance only)',
+    )
+    p.add_argument('--min-size', type=int, default=64, help='Smallest tissue or gray/white island kept, in pixels')
+    p.add_argument('--min-fluid', type=int, default=400, help='Smallest enclosed hole labeled fluid, in pixels')
+    p.add_argument('--seed', type=int, default=0)
+
     p = sub.add_parser('demo', help='Synthetic end-to-end software check.')
     p.add_argument('--output', default='outputs/synthetic_demo')
 
@@ -53,6 +71,22 @@ def main(argv=None):
         from brainseg.benchmark import run_predictions
 
         report = run_predictions(args.manifest, args.model, args.split, args.output)
+        print(f'Report saved to {args.output}/report.json; mean sample Dice: {report["mean_sample_macro_dice"]}')
+    elif args.command == 'segment':
+        from brainseg.benchmark import run_classical
+
+        report = run_classical(
+            args.manifest,
+            args.split,
+            args.output,
+            args.method,
+            retardance=args.retardance,
+            reflectivity=args.reflectivity,
+            features=args.features,
+            min_size=args.min_size,
+            min_fluid=args.min_fluid,
+            seed=args.seed,
+        )
         print(f'Report saved to {args.output}/report.json; mean sample Dice: {report["mean_sample_macro_dice"]}')
     elif args.command == 'demo':
         from brainseg.benchmark import demo
