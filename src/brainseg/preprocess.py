@@ -3,6 +3,17 @@
 import numpy as np
 
 
+def otsu(values):
+    """Otsu threshold of `values` from a 256-bin histogram."""
+    h, edges = np.histogram(values, bins=256)
+    centers = (edges[:-1] + edges[1:]) / 2
+    w = np.cumsum(h).astype(float)
+    s = np.cumsum(h * centers)
+    denominator = w * (w[-1] - w)
+    score = np.divide((s[-1] * w - s * w[-1]) ** 2, denominator, out=np.zeros_like(w), where=denominator > 0)
+    return float(centers[np.argmax(score)])
+
+
 def percentile_bounds(a, mask=None):
     """1st and 99th percentiles of `a`, inside `mask` if given. NaNs are ignored."""
     return np.nanpercentile(a if mask is None else a[mask], [1, 99])
