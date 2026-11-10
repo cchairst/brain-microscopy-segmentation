@@ -43,7 +43,10 @@ def read_array(path, key='', channel=''):
     if a.ndim != 2 or min(a.shape) < 2:
         raise ValueError(f'{path}: expected a 2D array; got {a.shape}. Select a numeric channel explicitly for RGB.')
     if np.iscomplexobj(a):
-        raise ValueError(f'{path}: complex data (e.g. raw orientation TEnAO); convert with preprocess.orientation().')
+        raise ValueError(
+            f'{path}: complex data (e.g. raw orientation TEnAO); '
+            'convert with preprocess.orientation() and save as .npy.'
+        )
     if not np.issubdtype(a.dtype, np.number) or np.isinf(a).any():
         raise ValueError(f'{path}: data must be numeric and not infinite; NaN marks pixels outside the imaged area.')
     return a
