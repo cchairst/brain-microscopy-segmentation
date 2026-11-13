@@ -69,13 +69,18 @@ def evaluate(manifest, split, output, method, predict, model_sha256=None, train_
             pooled += cm
             cms.setdefault(r['sample_id'], np.zeros((n, n), dtype=np.int64))[:] += cm
             record['metrics'] = metrics(cm)
-            record['metrics']['hd95_px'] = {LABELS[c]: hd95(prediction, y, c, valid) for c in LABELS if c}
-            hds.setdefault(r['sample_id'], []).append(record['metrics']['hd95_px'])
+            m = record['metrics']
+            m['hd95_px'] = {LABELS[c]: hd95(prediction, y, c, valid) for c in LABELS if c}
+            # Optional pixel_size_mm column: HD95 in um (null without it).
+            um = 1000 * float(r['pixel_size_mm']) if r.get('pixel_size_mm') else None
+            m['hd95_um'] = {LABELS[c]: hd95(prediction, y, c, valid, um) if um else None for c in LABELS if c}
+            hds.setdefault(r['sample_id'], []).append({unit: m[unit] for unit in ('hd95_px', 'hd95_um')})
         sections.append(record)
     samples = {s: metrics(cm) for s, cm in cms.items()}
     for s, per_section in hds.items():  # HD95 does not pool across sections: average the section values
-        by_class = {name: [h[name] for h in per_section if h[name] is not None] for name in per_section[0]}
-        samples[s]['hd95_px'] = {name: float(np.mean(v)) if v else None for name, v in by_class.items()}
+        for unit in ('hd95_px', 'hd95_um'):
+            by_class = {k: [h[unit][k] for h in per_section if h[unit][k] is not None] for k in per_section[0][unit]}
+            samples[s][unit] = {k: float(np.mean(v)) if v else None for k, v in by_class.items()}
     values = [v['macro_tissue']['dice'] for v in samples.values() if v['macro_tissue']['dice'] is not None]
     report = {
         'method': method,
@@ -89,7 +94,7 @@ def evaluate(manifest, split, output, method, predict, model_sha256=None, train_
         'mean_sample_macro_dice': float(np.mean(values)) if values else None,
         'note': 'Undefined metrics are null. Tissue macro and volume fractions cover gray matter, white matter '
         'and fluid; damage is scored per class only. Unannotated pixels (255) are ignored. '
-        'HD95 is in pixels; per-sample HD95 is the mean of its sections.',
+        'HD95 is in pixels, and in um for rows with pixel_size_mm; per-sample HD95 is the mean of its sections.',
     }
     if settings is not None:
         report['settings'] = settings
