@@ -42,11 +42,21 @@ def tissue_fractions(counts):
     return {LABELS[c]: float(counts[c] / total) if total else None for c in [1, 2, 3]}
 
 
-def hd95(pred, ref, label, valid=None):
-    """95th-percentile symmetric surface distance in pixels within `valid`; None if either side is empty."""
+def hd95(pred, ref, label, valid=None, spacing=None):
+    """95th-percentile symmetric surface distance within `valid`, in pixels or in the units of `spacing`.
+
+    None if either side is empty.
+    """
     valid = np.ones(ref.shape, bool) if valid is None else valid
     p, r = (pred == label) & valid, (ref == label) & valid
     if not p.any() or not r.any():
         return None
     sp, sr = p & ~binary_erosion(p), r & ~binary_erosion(r)
-    return float(np.percentile(np.concatenate([distance_transform_edt(~sr)[sp], distance_transform_edt(~sp)[sr]]), 95))
+    return float(
+        np.percentile(
+            np.concatenate(
+                [distance_transform_edt(~sr, sampling=spacing)[sp], distance_transform_edt(~sp, sampling=spacing)[sr]]
+            ),
+            95,
+        )
+    )
