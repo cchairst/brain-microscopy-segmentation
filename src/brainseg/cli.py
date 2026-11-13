@@ -42,6 +42,12 @@ def main(argv=None):
     p.add_argument('--min-fluid-area', type=float, default=1.2, help='Smallest enclosed hole labeled fluid, in mm^2')
     p.add_argument('--seed', type=int, default=0)
 
+    p = sub.add_parser('compare', help='Collect report.json files into one table with 95% bootstrap intervals.')
+    p.add_argument('reports', nargs='+', help='report.json files or the run directories that contain them')
+    p.add_argument('--output', required=True, help='CSV to write')
+    p.add_argument('--n-boot', type=int, default=2000)
+    p.add_argument('--seed', type=int, default=0)
+
     p = sub.add_parser('demo', help='Synthetic end-to-end software check.')
     p.add_argument('--output', default='outputs/synthetic_demo')
 
@@ -92,6 +98,15 @@ def main(argv=None):
             seed=args.seed,
         )
         print(f'Report saved to {args.output}/report.json; mean sample Dice: {report["mean_sample_macro_dice"]}')
+    elif args.command == 'compare':
+        from brainseg.compare import compare
+
+        rows = compare(args.reports, args.output, args.n_boot, args.seed)
+        for r in rows:
+            if r['class'] == 'macro_tissue':
+                ci = f'[{r["ci_low"]:.3f}, {r["ci_high"]:.3f}]' if r['ci_low'] is not None else '(1 section)'
+                print(f'{r["run"]:24s} {r["sample_id"]:12s} tissue Dice {r["mean"]:.3f} {ci}  n={r["n"]}')
+        print(f'{len(rows)} rows written to {args.output}' if rows else 'No annotated sections in these reports.')
     elif args.command == 'demo':
         from brainseg.benchmark import demo
 

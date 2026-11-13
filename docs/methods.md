@@ -68,7 +68,17 @@ Report `settings` record the method and every parameter, defaults included. Cont
 ## Benchmark outputs
 
 - Per-class Dice, IoU, precision, recall, support, and a 5 x 5 confusion matrix in ID order 0-4.
-- Per-class HD95 (95th-percentile symmetric surface distance) in pixels for each section; per-brain HD95 is the mean of its sections. Tissue volume fractions (classes 1-3) for reference and prediction.
+- Per-class HD95 (95th-percentile symmetric surface distance) for each section, in pixels and, for rows with a `pixel_size_mm` manifest column, in um; per-brain HD95 is the mean of its sections. Tissue volume fractions (classes 1-3) for reference and prediction.
+
+## Comparing runs
+
+`brainseg compare` collects any number of runs into one long-format CSV: one row per run, brain (`sample_id`), class and metric, with the mean over that brain's annotated sections and a 95% percentile-bootstrap interval (2000 resamples, seeded). Metrics are `dice`, `iou`, `hd95_px`, `hd95_um` and `vf_error` (absolute difference between predicted and reference tissue fraction), plus the tissue-macro Dice as class `macro_tissue`. Undefined values (for example HD95 for a class absent from a section) are left out, and `n` says how many sections each row uses; a single section gets no interval. Brains are never pooled.
+
+```bash
+brainseg compare outputs/gmm_test outputs/otsu_test outputs/rf_test --output results/table.csv
+```
+
+The run name is the directory holding `report.json`, so give each run (method and settings) its own output directory.
 - Tissue macro metrics and volume fractions cover gray matter, white matter and fluid; they exclude background and damage but include mistakes to/from them.
 - Pixels marked 255 in the reference are ignored. Undefined ratios are JSON `null`; macros average defined classes. Always inspect class support before comparing scores.
 - Per-brain metrics pool that brain's annotated sections; mean sample macro Dice weights each annotated brain equally. Pooled scores also appear and can favor larger samples.
