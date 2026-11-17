@@ -41,7 +41,7 @@ def run_predictions(manifest, model_path, split, output):
         }
         if r['mask']:
             y = read_mask(r['mask'], a.shape[:2])
-            valid = y != IGNORE
+            valid = (y != IGNORE) & ~np.isnan(a).any(-1)  # unimaged pixels are not trained on, so not scored
             cm = confusion_matrix(y[valid], prediction[valid], labels=list(LABELS))
             pooled += cm
             cms.setdefault(r['sample_id'], np.zeros((n, n), dtype=np.int64))[:] += cm

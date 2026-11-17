@@ -21,7 +21,9 @@ def features(a, method):
 
 
 def contrast_features(a, method):
-    x = np.nan_to_num(normalize(a))  # NaN (outside the imaged area) -> 0 so filters do not spread it
+    x = normalize(a)
+    if np.isnan(x).any():  # outside the imaged area: a median fill keeps filters from spreading NaN or darkening edges
+        x = np.where(np.isnan(x), np.nanmedian(x), x)
     if method == 'kmeans':
         return x[..., None]
     mean = uniform_filter(x, size=5)
@@ -73,11 +75,13 @@ def train(manifest, method, output, seed=42, pixels=20000):
         raise ValueError('Training annotations must include all three target tissue classes.')
     mapping = None
     if method == 'kmeans':
-        model = MiniBatchKMeans(n_clusters=len(LABELS), random_state=seed, n_init=3, batch_size=1024)
+        # One cluster per class present in training, so absent classes (often damage) get no spare cluster.
+        n_clusters = len(np.unique(y))
+        model = MiniBatchKMeans(n_clusters=n_clusters, random_state=seed, n_init=3, batch_size=1024)
         model.fit(x)
         clusters = model.predict(x)
         mapping = []
-        for k in range(len(LABELS)):
+        for k in range(n_clusters):
             members = y[clusters == k]
             mapping.append(int(np.bincount(members, minlength=len(LABELS)).argmax()) if len(members) else 0)
     else:
