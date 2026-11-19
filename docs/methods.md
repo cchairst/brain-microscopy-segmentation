@@ -65,6 +65,17 @@ Report `settings` record the method and every parameter, defaults included. Cont
 
 **Known limitations.** Enclosed gel gaps (for example between cerebellar folia) are labeled fluid when larger than `--min-fluid-area`. The area defaults were chosen by eye on low-res sections and should be tuned against reference labels. GMM is unstable on nearly empty end sections.
 
+## MRI pseudo-labels
+
+`brainseg.mri_labels` makes reference labels from each brain's ex vivo MRI, following the lab's suggestion to segment the MRI with an MRI tool and carry the result to the PS-OCT. Exploration and figures: `notebooks/02_mri_pseudo_labels.ipynb`. Requires the `mri` extra (`antspyx`, `fslpy`).
+
+1. **Segment:** three-class Atropos on FA, T2 and log-MD inside the MRI brain mask (0.4 mm).
+2. **Name:** the highest-MD class is fluid only if its median MD is at least 1.5x the brain's (Vlad yes, Moe no); the lowest-FA remaining class is gray matter, the rest white matter.
+3. **Partial volume:** high-FA "fluid" deep in the brain (corpus callosum, white matter next to ventricles) becomes white matter; high-FA "fluid" within 3 voxels of the surface, and voxels whose largest posterior is below 0.6, become 255.
+4. **Warp:** `warp()` resamples the labels into PS-OCT slide-deck space through the lab's `MRI_to_PSOCT_warpfield` (FNIRT, nearest neighbour, via fslpy; ~25 GB RAM).
+
+Checks so far (no hand labels): PS-OCT retardance separates MRI white from gray matter with AUC 0.87 (Vlad) and 0.89 (Moe) in MRI space, and 0.86 / 0.88 after warping. Fluid is small (Vlad, 1.5% of brain) or absent (Moe), and sulcal fluid is below MRI resolution. These are references from another modality at 0.4 mm: scores against them measure agreement with the MRI, not accuracy. Overlays fit Moe closely and Vlad more loosely, especially near the midline.
+
 ## Benchmark outputs
 
 - Per-class Dice, IoU, precision, recall, support, and a 5 x 5 confusion matrix in ID order 0-4.

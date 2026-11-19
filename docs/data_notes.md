@@ -14,6 +14,16 @@ Findings from `notebooks/01_explore_contrasts.ipynb` on Moe and Vlad (`Derivativ
 
 `Registration/slidedeck_slice_mapping.json` maps volume index to section: the stack is in reverse order (index 0 is Moe's slice 327).
 
+## MRI and registration
+
+Checked November 2026 for `notebooks/02_mri_pseudo_labels.ipynb`.
+
+- **Ex vivo MRI** (`Derivatives/<subject>/MRI/exvivo/`): `raw/` has T1, T2 and B1 maps, a 0.2 mm `TSE_anatomical` on its own grid, and the brain mask (`brain_mask` for Vlad, `mask` for Moe; identical to `proc/data/nodif_brain_mask`); `proc/data_lowershell.DTI_SSFP/` has the DTI maps (`dti_FA`, `dti_MD`, `dti_V1`, ...). All except the TSE share one 0.4 mm grid (Vlad 170 x 200 x 112, Moe 160 x 200 x 112).
+- **Registration** (`Enface/Registration/`, run with the lab's `psoct_wrapper`; Vlad's `command_log.txt`): FLIRT + FNIRT between MRI FA and PS-OCT retardance masked by cross-polarization, with warps both ways (`MRI_to_PSOCT_warpfield`, 2.6-2.9 GB, on the slide-deck grid; `PSOCT_to_MRI_warpfield`). `rel_mat.json` / `abs_mat.json` hold each section's in-plane transform into the slide deck.
+- **Vlad's** registration FA is the MRI `dti_FA`, so its `*_in_MRI` volumes are on the MRI grid. **Moe's** is `dtifit_FA`: the same image scaled ~0.75x on a padded 346 x 346 x 112 grid with a placeholder origin. Moe's MRI voxel (i, j, k) is registration voxel (i + 90, j + 70, k) (cross-correlation 0.97); the NIfTI headers do not encode this.
+- **Slide deck vs section files:** a deck slice is its `Registration/<contrast>/lowres/` section after the section's `abs_mat` transform (shifted ~2 mm for Vlad slice 137), so labels warped into deck space line up with the `*_slide_deck.nii.gz` volumes, not directly with the section files.
+- **No ready-made tissue segmentation** exists for the PS-OCT: a search of the project storage found only the MRI brain masks and `Ret_masked_by_Cro_slide_deck`, whose nonzero voxels include the embedding gel (36% of them lie outside Vlad's brain mask).
+
 ## Values
 
 Moe and Vlad were processed with different versions of the lab's MATLAB pipeline ([cmc_ps-oct_processing](https://github.com/mesoscale-connectivity/cmc_ps-oct_processing), `matlab_processing/`): Moe matches `PMSDOCT_2024_FCN.m`, Vlad matches `PSOCT_2025_FCN.m` (its stitcher is `MStitchFCN_Vlad.m`). Several differences below follow from that; the version assignment itself is inferred.
