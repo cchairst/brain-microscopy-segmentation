@@ -5,7 +5,7 @@ agreement with the MRI, not accuracy.
 """
 
 import numpy as np
-from scipy.ndimage import binary_erosion
+from scipy.ndimage import binary_dilation, binary_erosion
 
 from brainseg import IGNORE
 from brainseg.preprocess import percentile_bounds, scale
@@ -73,6 +73,21 @@ def label_mri(fa, t2, md, mask, spacing, **kwargs):
     """Segment, name and clean up in one call; keyword arguments go to `mark_uncertain`."""
     classes, posteriors = segment(fa, t2, md, mask, spacing)
     return mark_uncertain(name_classes(classes, fa, md), fa, mask, posteriors, **kwargs)
+
+
+def ignore_boundaries(labels, radius):
+    """Mark pixels within `radius` pixels of a different label as IGNORE, in 2D or 3D.
+
+    MRI labels are blocky at the scale of a voxel, so scores near class edges mostly measure that blockiness. A
+    radius of half an MRI voxel gives a band one voxel wide (0.2 mm / 0.055 mm ~ 4 pixels on the slide decks).
+    IGNORE pixels are left as they are and do not widen the band.
+    """
+    grid = np.indices((2 * radius + 1,) * labels.ndim) - radius
+    ball = (grid**2).sum(0) <= radius**2
+    out = labels.copy()
+    for c in np.unique(labels[labels != IGNORE]):
+        out[binary_dilation(labels == c, ball) & (labels != c) & (labels != IGNORE)] = IGNORE
+    return out
 
 
 def warp(labels, source, warp_path, reference_path):

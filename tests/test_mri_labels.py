@@ -3,7 +3,7 @@ import numpy as np
 import pytest
 
 from brainseg import IGNORE
-from brainseg.mri_labels import label_mri, mark_uncertain, name_classes, warp
+from brainseg.mri_labels import ignore_boundaries, label_mri, mark_uncertain, name_classes, warp
 
 
 def phantom():
@@ -49,6 +49,16 @@ def test_mark_uncertain_moves_deep_high_fa_fluid_and_drops_surface():
     assert out[4, 4, 5] == 3  # deep, low FA
     assert out[4, 4, 3] == IGNORE  # low posterior
     assert out[0, 0, 0] == 0
+
+
+def test_ignore_boundaries_marks_a_band_on_both_sides():
+    labels = np.zeros((5, 12), np.uint8)
+    labels[:, 6:] = 1
+    labels[0, 0] = IGNORE
+    out = ignore_boundaries(labels, 2)
+    np.testing.assert_array_equal(out[2], [0, 0, 0, 0, IGNORE, IGNORE, IGNORE, IGNORE, 1, 1, 1, 1])
+    assert out[0, 0] == IGNORE and out[0, 1] == 0  # an IGNORE pixel is not a boundary
+    assert ignore_boundaries(labels, 0).tolist() == labels.tolist()
 
 
 def test_label_mri_recovers_phantom():
