@@ -12,7 +12,7 @@ from sklearn.ensemble import RandomForestClassifier
 
 from brainseg import IGNORE, LABELS
 from brainseg.io import digest, image_digest, load_row, read_manifest, read_mask
-from brainseg.preprocess import normalize
+from brainseg.preprocess import normalize, unimaged
 
 
 def features(a, method):
@@ -47,7 +47,7 @@ def train(manifest, method, output, seed=42, pixels=20000):
         a = load_row(r)
         contrasts.add(a.shape[-1])
         y = read_mask(r['mask'], a.shape[:2]).ravel()
-        y[np.isnan(a).any(-1).ravel()] = IGNORE  # never train on pixels outside the imaged area
+        y[unimaged(a).ravel()] = IGNORE  # never train on pixels outside the imaged area
         f = features(a, method)
         f = f.reshape(-1, f.shape[-1])
         # Balanced sampling per section; ignore unannotated/artifact pixels.
@@ -117,5 +117,5 @@ def predict_array(artifact, a):
     pred = np.concatenate([artifact['model'].predict(flat[i : i + 65536]) for i in range(0, len(flat), 65536)])
     if artifact['mapping'] is not None:
         pred = np.asarray(artifact['mapping'])[pred]
-    pred[np.isnan(a).any(-1).ravel()] = 0  # outside the imaged area is background
+    pred[unimaged(a).ravel()] = 0  # outside the imaged area is background
     return pred.reshape(a.shape[:2]).astype(np.uint8)
