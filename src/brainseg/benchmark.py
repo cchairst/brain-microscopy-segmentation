@@ -15,6 +15,7 @@ from brainseg.io import digest, image_digest, load_row, read_manifest, read_mask
 from brainseg.methods.baselines import predict_array, train
 from brainseg.methods.classical import segment
 from brainseg.metrics import hd95, metrics
+from brainseg.preprocess import unimaged
 
 
 def run_predictions(manifest, model_path, split, output):
@@ -64,7 +65,7 @@ def evaluate(manifest, split, output, method, predict, model_sha256=None, train_
         }
         if r['mask']:
             y = read_mask(r['mask'], a.shape[:2])
-            valid = (y != IGNORE) & ~np.isnan(a).any(-1)  # unimaged pixels are not trained on, so not scored
+            valid = (y != IGNORE) & ~unimaged(a)  # pixels outside the scan are not trained on, so not scored
             cm = confusion_matrix(y[valid], prediction[valid], labels=list(LABELS))
             pooled += cm
             cms.setdefault(r['sample_id'], np.zeros((n, n), dtype=np.int64))[:] += cm

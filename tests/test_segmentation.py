@@ -127,17 +127,18 @@ def test_raw_section_values(tmp_path):
     np.testing.assert_allclose(orientation(3.0 * np.exp(2j * theta)), theta)
 
 
-def blank_left_edge(root, names, width=20):
+def blank_left_edge(root, names, width=20, value=np.nan):
     for name in names:  # simulate pixels outside the imaged tiles
         a = np.load(root / name)
-        a[:, :width] = np.nan
+        a[:, :width] = value
         np.save(root / name, a)
 
 
+@pytest.mark.parametrize('value', [np.nan, 0.0])  # NaN in raw sections, 0 in the registered slide decks
 @pytest.mark.parametrize('method', ['kmeans', 'rf'])
-def test_nan_pixels_are_ignored_and_predicted_background(tmp_path, method):
+def test_unimaged_pixels_are_ignored_and_predicted_background(tmp_path, method, value):
     demo(tmp_path)
-    blank_left_edge(tmp_path, ['brain0.npy', 'brain4.npy'])  # one train and one test section
+    blank_left_edge(tmp_path, ['brain0.npy', 'brain4.npy'], value=value)  # one train and one test section
     train(tmp_path / 'manifest.csv', method, tmp_path / 'nan.joblib', pixels=4000)
     report = run_predictions(tmp_path / 'manifest.csv', tmp_path / 'nan.joblib', 'test', tmp_path / 'nan_out')
     assert report['mean_sample_macro_dice'] > 0.9
@@ -149,12 +150,13 @@ def test_nan_pixels_are_ignored_and_predicted_background(tmp_path, method):
     assert np.sum(first['metrics']['confusion_matrix']) == 96 * (96 - 20)
 
 
-def test_training_ignores_unimaged_pixels(tmp_path):
+@pytest.mark.parametrize('value', [np.nan, 0.0])
+def test_training_ignores_unimaged_pixels(tmp_path, value):
     demo(tmp_path)
     # Fluid sits at the center; blanking it in every train section leaves no fluid to train on.
     for i in range(3):
         a = np.load(tmp_path / f'brain{i}.npy')
-        a[34:63, 34:63] = np.nan  # covers the fluid disk (radius 10, center shifted up to 3 px)
+        a[34:63, 34:63] = value  # covers the fluid disk (radius 10, center shifted up to 3 px)
         np.save(tmp_path / f'brain{i}.npy', a)
     with pytest.raises(ValueError, match='three target tissue classes'):
         train(tmp_path / 'manifest.csv', 'rf', tmp_path / 'm.joblib', pixels=4000)

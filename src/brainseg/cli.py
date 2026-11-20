@@ -40,6 +40,9 @@ def main(argv=None):
     p.add_argument('--pixel-size', type=float, default=0.055, help='Pixel size in mm (0.055 for 10x low-res sections)')
     p.add_argument('--min-area', type=float, default=0.2, help='Smallest tissue or gray/white island kept, in mm^2')
     p.add_argument('--min-fluid-area', type=float, default=1.2, help='Smallest enclosed hole labeled fluid, in mm^2')
+    p.add_argument(
+        '--min-gel', type=float, default=0.2, help='Smallest imaged fraction below the tissue threshold taken as gel'
+    )
     p.add_argument('--seed', type=int, default=0)
 
     p = sub.add_parser('compare', help='Collect report.json files into one table with 95% bootstrap intervals.')
@@ -95,6 +98,7 @@ def main(argv=None):
             pixel_size=args.pixel_size,
             min_area=args.min_area,
             min_fluid_area=args.min_fluid_area,
+            min_gel=args.min_gel,
             seed=args.seed,
         )
         print(f'Report saved to {args.output}/report.json; mean sample Dice: {report["mean_sample_macro_dice"]}')
