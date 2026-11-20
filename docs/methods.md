@@ -73,6 +73,7 @@ Report `settings` record the method and every parameter, defaults included. Cont
 2. **Name:** the highest-MD class is fluid only if its median MD is at least 1.5x the brain's (Vlad yes, Moe no); the lowest-FA remaining class is gray matter, the rest white matter.
 3. **Partial volume:** high-FA "fluid" deep in the brain (corpus callosum, white matter next to ventricles) becomes white matter; high-FA "fluid" within 3 voxels of the surface, and voxels whose largest posterior is below 0.6, become 255.
 4. **Warp:** `warp()` resamples the labels into PS-OCT slide-deck space through the lab's `MRI_to_PSOCT_warpfield` (FNIRT, nearest neighbour, via fslpy; ~25 GB RAM).
+5. **Optional boundary band:** `ignore_boundaries()` sets pixels within a radius of a different label to 255, so scores are not dominated by the MRI's voxel-scale blockiness. Half an MRI voxel (4 pixels on the slide decks) gives a band one voxel wide. Report scores with and without it.
 
 Checks so far (no hand labels): PS-OCT retardance separates MRI white from gray matter with AUC 0.87 (Vlad) and 0.89 (Moe) in MRI space, and 0.86 / 0.88 after warping. Fluid is small (Vlad, 1.5% of brain) or absent (Moe), and sulcal fluid is below MRI resolution. These are references from another modality at 0.4 mm: scores against them measure agreement with the MRI, not accuracy. Overlays fit Moe closely and Vlad more loosely, especially near the midline.
 
