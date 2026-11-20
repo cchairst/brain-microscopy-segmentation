@@ -64,7 +64,8 @@ def evaluate(manifest, split, output, method, predict, model_sha256=None, train_
         }
         if r['mask']:
             y = read_mask(r['mask'], a.shape[:2])
-            valid = (y != IGNORE) & ~np.isnan(a).any(-1)  # unimaged pixels are not trained on, so not scored
+            # Unimaged pixels (NaN, or zero in every contrast as in the registered slide decks) are not scored.
+            valid = (y != IGNORE) & ~np.isnan(a).any(-1) & (a != 0).any(-1)
             cm = confusion_matrix(y[valid], prediction[valid], labels=list(LABELS))
             pooled += cm
             cms.setdefault(r['sample_id'], np.zeros((n, n), dtype=np.int64))[:] += cm

@@ -80,7 +80,7 @@ brainseg compare outputs/gmm_test outputs/otsu_test outputs/rf_test --output res
 
 The run name is the directory holding `report.json`, so give each run (method and settings) its own output directory.
 - Tissue macro metrics and volume fractions cover gray matter, white matter and fluid; they exclude background and damage but include mistakes to/from them.
-- Pixels marked 255 in the reference are ignored. Undefined ratios are JSON `null`; macros average defined classes. Always inspect class support before comparing scores.
+- Pixels marked 255 in the reference are ignored. So are unimaged pixels: NaN in any contrast, or zero in every contrast (how the registered slide decks mark them). Undefined ratios are JSON `null`; macros average defined classes. Always inspect class support before comparing scores.
 - Per-brain metrics pool that brain's annotated sections; mean sample macro Dice weights each annotated brain equally. Pooled scores also appear and can favor larger samples.
 - Model metadata stores train sample IDs, train image/mask hashes, manifest hash, seed, sampling budget, and dependency versions. Reports store image/model/manifest hashes. Preserve both the model and the original manifest with each run.
 

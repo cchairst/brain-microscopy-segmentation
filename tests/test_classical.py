@@ -5,7 +5,7 @@ import numpy as np
 import pytest
 from PIL import Image
 
-from brainseg.benchmark import run_classical
+from brainseg.benchmark import evaluate, run_classical
 from brainseg.cli import main
 from brainseg.methods.classical import remove_small, segment
 from brainseg.preprocess import otsu
@@ -147,3 +147,19 @@ def test_segment_command_scores_and_records_settings(tmp_path):
     assert all(dice[c]['dice'] > 0.9 for c in ['gray_matter', 'white_matter', 'fluid_space'])
     report = run_classical(tmp_path / 'manifest.csv', 'test', tmp_path / 'out2', 'otsu', **PIXELS)
     assert report['settings']['features'] is None and report['mean_sample_macro_dice'] > 0.9
+
+
+def test_evaluate_skips_pixels_that_are_zero_in_every_contrast(tmp_path):
+    a = np.ones((10, 10, 2), np.float32)
+    a[:, :3] = 0  # unimaged, as in the registered slide decks
+    a[0, 5, 0] = 0  # zero in one contrast only: still imaged
+    np.save(tmp_path / 'ret.npy', a[..., 0])
+    np.save(tmp_path / 'ref.npy', a[..., 1])
+    Image.fromarray(np.ones((10, 10), np.uint8)).save(tmp_path / 'mask.png')
+    with (tmp_path / 'manifest.csv').open('w', newline='') as f:
+        csv.writer(f).writerows([['sample_id', 'section_id', 'split', 'image', 'mask'],
+                                 ['s', '001', 'test', 'ret.npy;ref.npy', 'mask.png']])  # fmt: skip
+    report = evaluate(
+        tmp_path / 'manifest.csv', 'test', tmp_path / 'out', 'all-gray', lambda x: np.ones(x.shape[:2], np.uint8)
+    )
+    assert np.sum(report['sections'][0]['metrics']['confusion_matrix']) == 70
