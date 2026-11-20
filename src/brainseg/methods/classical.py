@@ -25,17 +25,20 @@ def segment(
     pixel_size=0.055,
     min_area=0.2,
     min_fluid_area=1.2,
+    min_gel=0.2,
     seed=0,
     sample=200_000,
 ):
     """Label an H x W x C section as 0 background, 1 gray, 2 white, 3 fluid, without training labels.
 
-    Tissue is Otsu on reflectivity over imaged pixels. Imaged holes enclosed by tissue are fluid when at least
-    `min_fluid_area` mm^2, otherwise they are filled as tissue (vessels take the surrounding label). Gray and
-    white are split on retardance (`otsu`) or by two clusters of the `features` contrasts (`gmm`, `kmeans`;
-    default retardance only); white is the higher-retardance group. Islands smaller than `min_area` mm^2 are
-    merged into their surroundings. Areas use `pixel_size` in mm. Clusters are fitted on at most `sample`
-    tissue pixels. Damage (4) is not predicted; a section without tissue is all background.
+    Tissue is Otsu on reflectivity over imaged pixels; if that split puts less than `min_gel` of them below the
+    threshold, it has cut off a dim minority rather than the embedding gel, so Otsu is repeated above it. Imaged
+    holes enclosed by tissue are fluid when at least `min_fluid_area` mm^2, otherwise they are filled as tissue
+    (vessels take the surrounding label). Gray and white are split on retardance (`otsu`) or by two clusters of the
+    `features` contrasts (`gmm`, `kmeans`; default retardance only); white is the higher-retardance group. Islands
+    smaller than `min_area` mm^2 are merged into their surroundings. Areas use `pixel_size` in mm. Clusters are
+    fitted on at most `sample` tissue pixels. Damage (4) is not predicted; a section without tissue is all
+    background.
     """
     if method not in METHODS:
         raise ValueError(f'unknown method: {method}')
@@ -53,7 +56,10 @@ def segment(
     if not imaged.any():  # blank section: nothing to threshold (and no all-NaN warnings)
         return out
     ref = np.nan_to_num(normalize(raw_ref))
-    tissue = remove_small(imaged & (ref > otsu(ref[imaged])), min_size)
+    threshold = otsu(ref[imaged])
+    if (ref[imaged] <= threshold).mean() < min_gel:
+        threshold = otsu(ref[imaged & (ref > threshold)])
+    tissue = remove_small(imaged & (ref > threshold), min_size)
     if not tissue.any():
         return out
     holes = binary_fill_holes(tissue) & ~tissue & imaged  # unimaged pixels stay background, as in predict

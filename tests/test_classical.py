@@ -91,6 +91,16 @@ def test_segment_areas_are_physical():
     )
 
 
+def test_segment_otsu_skips_a_dim_rim_to_reach_the_gel():
+    # Registered sections can carry a thin rim of dim, partly imaged pixels; a single Otsu split would separate
+    # that rim from gel + tissue and label the gel as tissue.
+    a = section(gel=0.75)
+    a[5:8, 5:115, 2] = 0.05
+    labels = segment(a, 'otsu', **PIXELS)
+    for (row, col), expected in POINTS.items():
+        assert labels[row, col] == expected, (row, col)
+
+
 def test_segment_enclosed_unimaged_region_is_background():
     a = section()
     yy, xx = np.mgrid[:120, :120]
