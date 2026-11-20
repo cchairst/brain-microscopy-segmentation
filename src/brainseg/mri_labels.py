@@ -90,6 +90,14 @@ def ignore_boundaries(labels, radius):
     return out
 
 
+def consensus(mri, psoct):
+    """Keep pixels where MRI labels and a PS-OCT segmentation agree; set the rest to IGNORE.
+
+    Training labels for a PS-OCT model: no pixel is learned from that only one modality supports.
+    """
+    return np.where(mri == psoct, mri, IGNORE).astype(np.uint8)
+
+
 def warp(labels, source, warp_path, reference_path):
     """Resample `labels` into PS-OCT space through an FSL FNIRT warp, with nearest-neighbour interpolation.
 

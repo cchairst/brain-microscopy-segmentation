@@ -17,6 +17,7 @@ dependencies = [
 
 [project.optional-dependencies]
 mri = ["antspyx==0.6.3", "fslpy>=3.21", "nibabel>=5.2,<6", "matplotlib"]
+unet = ["torch>=2.2"]
 dev = ["pytest", "ruff", "jupyterlab", "matplotlib", "nibabel>=5.2,<6", "nbstripout"]
 
 [project.scripts]

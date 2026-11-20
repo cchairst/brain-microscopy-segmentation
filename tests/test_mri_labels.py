@@ -3,7 +3,7 @@ import numpy as np
 import pytest
 
 from brainseg import IGNORE
-from brainseg.mri_labels import ignore_boundaries, label_mri, mark_uncertain, name_classes, warp
+from brainseg.mri_labels import consensus, ignore_boundaries, label_mri, mark_uncertain, name_classes, warp
 
 
 def phantom():
@@ -59,6 +59,12 @@ def test_ignore_boundaries_marks_a_band_on_both_sides():
     np.testing.assert_array_equal(out[2], [0, 0, 0, 0, IGNORE, IGNORE, IGNORE, IGNORE, 1, 1, 1, 1])
     assert out[0, 0] == IGNORE and out[0, 1] == 0  # an IGNORE pixel is not a boundary
     assert ignore_boundaries(labels, 0).tolist() == labels.tolist()
+
+
+def test_consensus_keeps_agreement_only():
+    mri = np.array([0, 1, 2, 3, IGNORE], np.uint8)
+    psoct = np.array([0, 2, 2, 1, 1], np.uint8)
+    np.testing.assert_array_equal(consensus(mri, psoct), [0, IGNORE, 2, IGNORE, IGNORE])
 
 
 def test_label_mri_recovers_phantom():
