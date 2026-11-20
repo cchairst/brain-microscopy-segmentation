@@ -3,6 +3,12 @@
 import numpy as np
 
 
+def unimaged(a):
+    """Pixels of an H x W x C stack outside the scan: NaN in any contrast, or zero in every contrast (how the
+    registered slide decks mark them)."""
+    return np.isnan(a).any(-1) | (a == 0).all(-1)
+
+
 def otsu(values):
     """Otsu threshold of `values` from a 256-bin histogram."""
     h, edges = np.histogram(values, bins=256)
