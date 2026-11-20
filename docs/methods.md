@@ -77,6 +77,17 @@ Report `settings` record the method and every parameter, defaults included. Cont
 
 Checks so far (no hand labels): PS-OCT retardance separates MRI white from gray matter with AUC 0.87 (Vlad) and 0.89 (Moe) in MRI space, and 0.86 / 0.88 after warping. Fluid is small (Vlad, 1.5% of brain) or absent (Moe), and sulcal fluid is below MRI resolution. These are references from another modality at 0.4 mm: scores against them measure agreement with the MRI, not accuracy. Overlays fit Moe closely and Vlad more loosely, especially near the midline.
 
+## U-Net on consensus labels
+
+`brainseg.methods.unet` is a 2D U-Net (4 levels, 16 base channels) that sees only PS-OCT. Exploration and figures: `notebooks/04_unet_consensus_labels.ipynb`. Requires the `unet` extra (PyTorch).
+
+1. **Labels:** for every slide-deck section, `consensus()` keeps pixels where the warped MRI labels and the classical `otsu` segmentation agree and sets the rest to 255, so no pixel is learned from that only one modality supports. Unimaged pixels and damage are never learned from.
+2. **Input:** retardance and reflectivity, each scaled to its imaged 1st/99th percentiles per section.
+3. **Training:** 256 x 256 patches centred on random labelled pixels, random flips and 90 degree rotations, cross-entropy ignoring 255, AdamW with a one-cycle schedule (4000 steps of 16 patches). Trained on one brain and tested on the other, in both directions.
+4. **Prediction:** whole sections at once; unimaged pixels are background.
+
+Results (one run per direction, agreement with the MRI labels on notebook 03's 20 sections per brain): trained on Moe and tested on Vlad, gray/white Dice is 0.81 / 0.75, the same as the classical methods within their intervals. Trained on Vlad and tested on Moe, it is worse (background 0.76, gray 0.78, white 0.75; otsu 0.90 / 0.82 / 0.78) because it labels Moe's bright, tile-patterned gel as tissue, which Vlad's dark gel never showed it. It predicts no fluid, since the consensus labels contain almost none. Inside tissue it agrees with otsu on 94-95% of pixels, so it mostly reproduces the classical gray/white split.
+
 ## Benchmark outputs
 
 - Per-class Dice, IoU, precision, recall, support, and a 5 x 5 confusion matrix in ID order 0-4.
@@ -98,8 +109,9 @@ The run name is the directory holding `report.json`, so give each run (method an
 
 ## Next research phases
 
-1. Establish expert reference masks and inter-rater agreement on representative sections across brains.
-2. Run these baselines and inspect failures at tissue boundaries and artifacts.
-3. Add supervised U-Net/nnU-Net after confirming training volume, label consistency, and compute availability; compare against the same frozen split.
-4. Extend to aligned 3D PS-OCT with physical spacing and boundary metrics.
-5. Add chunked Zarr processing and LSFM with explicit distortion/registration checks; compare samples and modalities separately.
+No expert hand labels will be made, so references come from the segmentations themselves, with the MRI labels as the only independent check.
+
+1. Inspect failures at tissue boundaries and artifacts, and tune settings on one brain while scoring on the other.
+2. Add cross-polarization as a U-Net input and compare against the same held-out-brain split.
+3. Extend to aligned 3D PS-OCT with physical spacing and boundary metrics.
+4. Add chunked Zarr processing and LSFM with explicit distortion/registration checks; compare samples and modalities separately.

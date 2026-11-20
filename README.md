@@ -1,8 +1,8 @@
 # Brain Microscopy Tissue Segmentation
 
-Develop and compare tissue segmentation methods for nonhuman primate brain microscopy, starting with polarization-sensitive optical coherence tomography (PS-OCT). This repository provides runnable **2D starter baselines, 3D Atropos pilots, and evaluation**, following the supplied project brief. LSFM, full-resolution Zarr, and deep-learning methods are planned extensions.
+Develop and compare tissue segmentation methods for nonhuman primate brain microscopy, starting with polarization-sensitive optical coherence tomography (PS-OCT). This repository provides runnable **2D starter baselines, 3D Atropos pilots, and evaluation**, following the supplied project brief. LSFM and full-resolution Zarr are planned extensions.
 
-**Status:** Vlad is the first active sample. Three real MRI-aligned PS-OCT NIfTI contrasts and the lab's matching MRI brain mask have been downloaded and checked. Single-contrast and three-contrast 3D Atropos pilots have run. This follows the earlier Subject M JPEG pilot. Expert tissue annotations and anatomical segmentation accuracy remain unverified.
+**Status:** Vlad is the first active sample. Three real MRI-aligned PS-OCT NIfTI contrasts and the lab's matching MRI brain mask have been downloaded and checked. Single-contrast and three-contrast 3D Atropos pilots have run. This follows the earlier Subject M JPEG pilot. No expert tissue annotations will be made: methods are scored against labels made from each brain's ex vivo MRI, and a U-Net is trained on the consensus of those and the classical segmentation (see [docs/methods.md](docs/methods.md)). Scores measure agreement with the MRI, not accuracy.
 
 ## Quick start
 
@@ -11,7 +11,7 @@ Python 3.10 or later:
 ```bash
 python -m venv .venv
 source .venv/bin/activate
-pip install -e ".[dev]"        # add ,mri for the ANTs Atropos commands
+pip install -e ".[dev]"        # add ,mri for ANTs Atropos and MRI labels, ,unet for the U-Net (PyTorch)
 pytest
 brainseg demo --output outputs/synthetic_demo
 ```
