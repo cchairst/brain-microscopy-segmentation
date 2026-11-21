@@ -41,3 +41,40 @@ def test_fit_rejects_sections_without_labels():
     a, y = section(0)
     with pytest.raises(ValueError, match='No labelled'):
         fit([a], [np.full_like(y, IGNORE)], iterations=1, on='cpu')
+
+
+@pytest.mark.parametrize('position', [(1, 1), (7, 13), (63, 63)])
+def test_fit_uses_sparse_labels_between_grid_points(position):
+    a, y = section(0)
+    labels = np.full_like(y, IGNORE)
+    # A single imaged reference pixel is enough to centre a valid training patch.
+    a[position] = [0.4, 0.8]
+    labels[position] = 1
+    model, losses = fit([a], [labels], iterations=2, patch=16, batch=2, width=2, depth=1, seed=5, on='cpu')
+    assert len(losses) == 2 and np.isfinite(losses).all()
+    assert predict(model, a, on='cpu').shape == labels.shape
+
+
+@pytest.mark.parametrize('value', [0, np.nan])
+def test_sparse_labels_on_unimaged_pixels_are_not_used(value):
+    a, y = section(0)
+    labels = np.full_like(y, IGNORE)
+    labels[7, 13] = 1
+    a[7, 13] = value
+    with pytest.raises(ValueError, match='No labelled'):
+        fit([a], [labels], iterations=2, patch=16, batch=2, width=2, depth=1, on='cpu')
+
+
+def test_sparse_label_training_is_reproducible():
+    a, y = section(0)
+    labels = np.full_like(y, IGNORE)
+    labels[7, 13] = 1
+    labels[51, 53] = 2
+    # An empty section is skipped without losing either labelled location in the other section.
+    args = ([a, a], [np.full_like(y, IGNORE), labels])
+    settings = dict(iterations=4, patch=16, batch=2, width=2, depth=1, seed=11, on='cpu')
+    first, losses = fit(*args, **settings)
+    second, repeated = fit(*args, **settings)
+    np.testing.assert_array_equal(losses, repeated)
+    for key, value in first.state_dict().items():
+        torch.testing.assert_close(value, second.state_dict()[key], rtol=0, atol=0)
