@@ -58,6 +58,29 @@ def prepare(a):
     return x.astype(np.float32)
 
 
+def locate(row_totals, labels, rank):
+    """Locate a zero-based eligible-pixel rank in row-major order."""
+    r = np.searchsorted(row_totals, rank, side='right')
+    before = row_totals[r - 1] if r else 0
+    c = np.flatnonzero(labels[r] != IGNORE)[rank - before]
+    return r, c
+
+
+def sample_centres(row_totals, labels, batch, rng):
+    """Yield (section, row, column), uniformly over all eligible pixels.
+
+    Draw sections together, then yield each pixel lazily so augmentation can use
+    the same RNG between centres without changing the training draw order.
+    """
+    keep = [i for i, counts in enumerate(row_totals) if counts[-1]]
+    if not keep:
+        raise ValueError('No labelled pixels to train on.')
+    weights = np.array([row_totals[i][-1] for i in keep], float)
+    for i in rng.choice(keep, batch, p=weights / weights.sum()):
+        rank = rng.integers(row_totals[i][-1])
+        yield i, *locate(row_totals[i], labels[i], rank)
+
+
 def fit(sections, labels, iterations=4000, patch=256, batch=16, lr=1e-3, width=16, depth=4, seed=0, on=None):
     """Train a U-Net on H x W x C sections and their labels (0-3; 255 and damage are ignored); return (model, losses).
 
@@ -78,7 +101,6 @@ def fit(sections, labels, iterations=4000, patch=256, batch=16, lr=1e-3, width=1
     keep = [i for i, counts in enumerate(row_totals) if counts[-1]]
     if not keep:
         raise ValueError('No labelled pixels to train on.')
-    weights = np.array([row_totals[i][-1] for i in keep], float)
     model = UNet(xs[0].shape[0], width, depth).to(on)
     optimizer = torch.optim.AdamW(model.parameters(), lr=lr)
     schedule = torch.optim.lr_scheduler.OneCycleLR(optimizer, lr, total_steps=iterations)
@@ -87,12 +109,7 @@ def fit(sections, labels, iterations=4000, patch=256, batch=16, lr=1e-3, width=1
     model.train()
     for _ in range(iterations):
         bx, by = [], []
-        for i in rng.choice(keep, batch, p=weights / weights.sum()):
-            # Pick a labelled-pixel rank, then locate its row and column without storing every coordinate.
-            rank = rng.integers(row_totals[i][-1])
-            r = np.searchsorted(row_totals[i], rank, side='right')
-            before = row_totals[i][r - 1] if r else 0
-            c = np.flatnonzero(ys[i][r] != IGNORE)[rank - before]
+        for i, r, c in sample_centres(row_totals, ys, batch, rng):
             x, y = xs[i][:, r - half : r + half, c - half : c + half], ys[i][r - half : r + half, c - half : c + half]
             k, flip = rng.integers(4), rng.integers(2)
             x, y = np.rot90(x, k, (1, 2)), np.rot90(y, k)
