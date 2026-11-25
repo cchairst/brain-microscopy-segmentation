@@ -47,3 +47,25 @@ The command also samples the categorical MRI reference at six positions around e
 | Vlad 110 | 315,807 | 198,617 (62.9%) | 117,190 (37.1%) |
 
 This measures sensitivity to the specified translations. Even a stable patch can inherit a wrong MRI label or a larger registration error.
+
+## Whole-brain output on the MRI grid
+
+`assist-volume` processes every slice of the registered 3D PS-OCT inputs. Use notebook 02's semantic MRI label volume for the same animal. Example for Moe:
+
+```bash
+brainseg assist-volume --subject Moe \
+  --reflectivity "$REG/Ref_slide_deck_in_MRI.nii.gz" \
+  --retardance "$REG/Ret_slide_deck_in_MRI.nii.gz" \
+  --mri-labels "$MRI_LABELS" --output outputs/Moe_volume
+```
+
+Use `--subject Vlad` and Vlad's inputs for the sagittal run. The command uses the MRI label affine, accommodates Moe's documented padded registration grid, and saves `tissue.nii.gz`, `source.nii.gz`, `report.json` and a self-contained `viewer.html`. Open the HTML in a browser to scroll through reflectivity, tissue overlays, masks and label sources.
+
+Within the MRI brain outline, the algorithm keeps optical Otsu gray/white estimates on slices with usable local signal. Both contrasts must be positive and Vlad's reflectivity must exceed 32.5. For the remaining voxels it accepts an MRI class only if all six face neighbours support that class, including through-plane neighbours. Unassigned tissue stays uncertain. Possible fluid in this volume workflow is MRI-derived. Source IDs are 0 background, 1 optical estimate, 2 stable MRI fill and 255 uncertain. The input optical images are resampled in MRI space, so the output has approximately 0.4 mm spacing.
+
+| Subject | Output grid | Optical share of brain | Stable MRI fill | Uncertain |
+| --- | --- | ---: | ---: | ---: |
+| Moe | 160 × 200 × 112 | 83.9% | 11.0% | 5.1% |
+| Vlad | 170 × 200 × 112 | 80.1% | 9.0% | 10.9% |
+
+Coverage describes the fraction assigned a label. MRI supplies the brain outline and the filled regions. Evaluate optical gray/white predictions separately against an independent tissue reference when one becomes available.
