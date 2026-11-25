@@ -88,5 +88,23 @@ def test_assisted_cli_preserves_section_geometry(tmp_path):
         np.testing.assert_array_equal(result.get_fdata(), np.full((1, 6, 7), 2))
         np.testing.assert_allclose(result.affine, section_affine)
         assert result.get_data_dtype() == np.uint8
+    agreement = nib.load(out / 'shift_agreement.nii.gz').get_fdata()
+    conservative = nib.load(out / 'conservative_tissue.nii.gz').get_fdata()
+    assert np.all(agreement[:, 2:4, 2:5] == 6)
+    assert agreement[0, 0, 0] < 6
+    np.testing.assert_array_equal(conservative, np.where(agreement == 6, 2, IGNORE))
     with pytest.raises(FileExistsError):
         main(args)
+
+
+def test_shift_counts_use_all_three_mri_axes_and_treat_outside_as_background():
+    from brainseg.assisted import shifted_agreement
+
+    labels = np.ones((7, 7, 7), dtype=np.uint8)
+    labels[3, 3, 2] = IGNORE
+    labels[3, 4, 3] = 2
+    labels[4, 3, 3] = 0
+    # The first point has three disagreements, the second has none, and
+    # the third touches three outside faces of the MRI volume.
+    coords = np.array([[3, 3, 3], [1, 1, 1], [0, 0, 0]], dtype=float).T
+    assert shifted_agreement(labels, coords, np.array([1, 1, 1])).tolist() == [3, 6, 3]
