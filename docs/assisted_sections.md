@@ -32,3 +32,18 @@ The command runs the existing Otsu method on reflectivity and retardance. It map
 | Vlad 110, sagittal | 287,143 | 315,807 | 38,244 | 0.970 |
 
 The output labels on MRI-filled pixels come directly from the MRI reference. Exclude those pixels when measuring independent optical agreement with that reference.
+
+## Sensitivity to registration shifts
+
+The command also samples the categorical MRI reference at six positions around each MRI-filled pixel: one MRI voxel in each direction along the three MRI axes (about 0.4 mm here). A switch to another tissue class, background, an uncertain MRI voxel, or a point outside the MRI volume counts as a disagreement.
+
+- `shift_agreement.nii.gz` gives the number of shifts retaining the original tissue class, from 0 to 6. The value 255 identifies pixels outside the MRI fill.
+- `conservative_tissue.nii.gz` keeps an MRI fill only when all six shifts agree. A sensitive fill becomes 255. Optical labels and previously uncertain pixels retain their original IDs.
+- `report.json` records the stable and shift-sensitive MRI pixel counts. The source map refers to the original `tissue.nii.gz`.
+
+| Section | MRI fills | Stable under all six shifts | Sensitive to at least one shift |
+| --- | ---: | ---: | ---: |
+| Moe 110 | 48,434 | 29,851 (61.6%) | 18,583 (38.4%) |
+| Vlad 110 | 315,807 | 198,617 (62.9%) | 117,190 (37.1%) |
+
+This measures sensitivity to the specified translations. Even a stable patch can inherit a wrong MRI label or a larger registration error.
