@@ -45,6 +45,13 @@ def main(argv=None):
     )
     p.add_argument('--seed', type=int, default=0)
 
+    p = sub.add_parser('assist-volume', help='Segment all MRI-grid slices for Moe or Vlad.')
+    p.add_argument('--subject', required=True, choices=['Moe', 'Vlad'])
+    p.add_argument('--reflectivity', required=True, help='Ref_slide_deck_in_MRI.nii.gz')
+    p.add_argument('--retardance', required=True, help='Ret_slide_deck_in_MRI.nii.gz')
+    p.add_argument('--mri-labels', required=True, help='Semantic MRI labels from notebook 02')
+    p.add_argument('--output', required=True, help='New directory for 3D tissue and source maps')
+
     p = sub.add_parser('assist-section', help='Fill missing native optical tissue labels from registered MRI.')
     p.add_argument('--reflectivity', required=True, help='Native low-resolution reflectivity section NIfTI')
     p.add_argument('--retardance', required=True, help='Matching retardance section NIfTI')
@@ -113,6 +120,10 @@ def main(argv=None):
             seed=args.seed,
         )
         print(f'Report saved to {args.output}/report.json; mean sample Dice: {report["mean_sample_macro_dice"]}')
+    elif args.command == 'assist-volume':
+        from brainseg.volume import run
+
+        print(json.dumps(run(args.subject, args.reflectivity, args.retardance, args.mri_labels, args.output), indent=2))
     elif args.command == 'assist-section':
         from brainseg.assisted import run
 
