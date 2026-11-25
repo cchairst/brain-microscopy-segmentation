@@ -45,6 +45,17 @@ def main(argv=None):
     )
     p.add_argument('--seed', type=int, default=0)
 
+    p = sub.add_parser('assist-section', help='Fill missing native optical tissue labels from registered MRI.')
+    p.add_argument('--reflectivity', required=True, help='Native low-resolution reflectivity section NIfTI')
+    p.add_argument('--retardance', required=True, help='Matching retardance section NIfTI')
+    p.add_argument('--deck', required=True, help='Registered optical slide deck (header only is read)')
+    p.add_argument('--warp', required=True, help='CMC PSOCT_to_MRI_warpfield.nii.gz')
+    p.add_argument('--mri-labels', required=True, help='Semantic MRI labels from notebook 02')
+    p.add_argument('--registered-ref', required=True, help='Ref_slide_deck_in_MRI.nii.gz for alignment checks')
+    p.add_argument('--offset', type=int, nargs=3, help='MRI origin in padded registration voxels (Moe: 90 70 0)')
+    p.add_argument('--floor', type=float, help='Exact reflectivity dropout value to mask inside brain (Vlad: 32.5)')
+    p.add_argument('--output', required=True, help='New directory for native tissue and source maps')
+
     p = sub.add_parser('compare', help='Collect report.json files into one table with 95% bootstrap intervals.')
     p.add_argument('reports', nargs='+', help='report.json files or the run directories that contain them')
     p.add_argument('--output', required=True, help='CSV to write')
@@ -102,6 +113,21 @@ def main(argv=None):
             seed=args.seed,
         )
         print(f'Report saved to {args.output}/report.json; mean sample Dice: {report["mean_sample_macro_dice"]}')
+    elif args.command == 'assist-section':
+        from brainseg.assisted import run
+
+        report = run(
+            args.reflectivity,
+            args.retardance,
+            args.deck,
+            args.warp,
+            args.mri_labels,
+            args.registered_ref,
+            args.output,
+            offset=args.offset,
+            floor=args.floor,
+        )
+        print(json.dumps(report, indent=2))
     elif args.command == 'compare':
         from brainseg.compare import compare
 
