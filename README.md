@@ -2,7 +2,7 @@
 
 Develop and compare tissue segmentation methods for nonhuman primate brain microscopy, starting with polarization-sensitive optical coherence tomography (PS-OCT). This repository provides runnable **2D starter baselines, 3D Atropos pilots, and evaluation**, following the supplied project brief. LSFM and full-resolution Zarr are planned extensions.
 
-**Status:** Vlad is the first active sample. Three real MRI-aligned PS-OCT NIfTI contrasts and the lab's matching MRI brain mask have been downloaded and checked. Single-contrast and three-contrast 3D Atropos pilots have run. This follows the earlier Subject M JPEG pilot. No expert tissue annotations will be made: methods are scored against labels made from each brain's ex vivo MRI, and a U-Net is trained on the consensus of those and the classical segmentation (see [docs/methods.md](docs/methods.md)). Scores measure agreement with the MRI, not accuracy.
+**Status:** Moe and Vlad both have a reproducible section 110 segmentation. The native-section workflow estimates tissue from PS-OCT, fills eligible gaps from registered ex vivo MRI, and records the source of each pixel. See [MRI-assisted section segmentation](docs/assisted_sections.md) for commands and verified output counts. Optical-only benchmarking and the U-Net experiments are described in [Methods](docs/methods.md).
 
 ## Quick start
 
@@ -27,6 +27,7 @@ Data exploration: `notebooks/01_explore_contrasts.ipynb` compares the four contr
 | `brainseg train` | Train the k-means or random forest baseline on a manifest's train rows |
 | `brainseg predict` | Predict a manifest split and score it against reference masks |
 | `brainseg segment` | Unsupervised classical segmentation (Otsu, GMM or k-means) of a manifest split, scored where masks exist |
+| `brainseg assist-section` | Produce a native PS-OCT tissue mask and optical/MRI source map |
 | `brainseg compare` | Collect runs into one CSV of per-brain means with 95% bootstrap intervals |
 | `brainseg demo` | Synthetic end-to-end software check |
 | `brainseg atropos` | ANTs Atropos intensity classes on a 2D section or 3D NIfTI (needs `.[mri]`) |
