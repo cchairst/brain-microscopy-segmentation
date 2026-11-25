@@ -22,7 +22,7 @@ def fsl_affine(image):
     return affine
 
 
-def project(section, deck, warp, labels, registered_ref, offset):
+def _project_section(section, deck, warp, labels, registered_ref, offset, audit):
     """Invert the lab's relative FNIRT displacement at each section pixel."""
     if len(deck.shape) != 3 or len(warp.shape) != 4 or warp.shape[-1] != 3:
         raise ValueError('Expected a 3D slide deck and a 3-component warp field.')
@@ -60,11 +60,35 @@ def project(section, deck, warp, labels, registered_ref, offset):
         position += 0.8 * residual
     # Discard unconverged samples. Out-of-volume sampling uses constant background.
     valid = np.max(np.abs(residual), axis=0) < 1e-3
-    mapped = map_coordinates(values.astype(np.uint8), vox - offset[:, None], order=0)
+    coords = vox - offset[:, None]
+    values = values.astype(np.uint8)
+    mapped = map_coordinates(values, coords, order=0)
     mapped[~valid] = 0
     check = map_coordinates(registered_ref.get_fdata(dtype=np.float32), vox, order=1)
     check[~valid] = np.nan
-    return mapped.reshape(section.shape), check.reshape(section.shape)
+    result = mapped.reshape(section.shape), check.reshape(section.shape)
+    if not audit:
+        return result, None
+    agreement = shifted_agreement(values, coords, mapped)
+    return result, agreement.reshape(section.shape)
+
+
+def project(section, deck, warp, labels, registered_ref, offset):
+    """Return MRI tissue and registered reflectivity on the native section."""
+    projected, _ = _project_section(section, deck, warp, labels, registered_ref, offset, audit=False)
+    return projected
+
+
+def shifted_agreement(labels, coords, center):
+    """Count matching labels at six one-voxel shifts on the original 3D MRI grid."""
+    count = np.zeros(center.shape, dtype=np.uint8)
+    for axis in range(3):
+        for step in (-1, 1):
+            shifted = coords.copy()
+            shifted[axis] += step
+            neighbor = map_coordinates(labels, shifted, order=0, mode='constant', cval=0)
+            count += neighbor == center
+    return count
 
 
 def fill(optical, mri, low_signal):
@@ -90,11 +114,17 @@ def run(reflectivity, retardance, deck, warp, mri_labels, registered_ref, output
     ref = section.get_fdata(dtype=np.float32).squeeze()
     stack = np.stack([ret.get_fdata(dtype=np.float32).squeeze(), ref], axis=-1)
     optical = segment(stack, 'otsu', reflectivity=1, pixel_size=np.sqrt(np.prod(spacing)))
-    mapped, check = project(
-        section, nib.load(deck), nib.load(warp), nib.load(mri_labels), nib.load(registered_ref), offset
+    (mapped, check), agreement = _project_section(
+        section, nib.load(deck), nib.load(warp), nib.load(mri_labels), nib.load(registered_ref), offset, audit=True
     )
     mri = mapped.squeeze()
     tissue, source = fill(optical, mri, (ref == floor) if floor is not None else False)
+
+    # The audit applies only to tissue IDs supplied by MRI.
+    agreement = np.where(source == 2, agreement.squeeze(), IGNORE).astype(np.uint8)
+    sensitive = agreement < 6
+    conservative = tissue.copy()
+    conservative[sensitive] = IGNORE
 
     # Reproject the lab's registered reflectivity for an independent coordinate check.
     smooth = gaussian_filter(ref, 3)
@@ -109,6 +139,8 @@ def run(reflectivity, retardance, deck, warp, mri_labels, registered_ref, output
         'mri_voxel_offset': offset,
         'optical_pixels': int((source == 1).sum()),
         'mri_filled_pixels': int((source == 2).sum()),
+        'shift_sensitive_mri_pixels': int(sensitive.sum()),
+        'stable_mri_pixels': int((agreement == 6).sum()),
         'uncertain_pixels': int((source == IGNORE).sum()),
     }
     output = Path(output)
@@ -118,7 +150,12 @@ def run(reflectivity, retardance, deck, warp, mri_labels, registered_ref, output
     with TemporaryDirectory(dir=output.parent) as temporary:
         staging = Path(temporary) / 'section'
         staging.mkdir()
-        for name, array in [('tissue', tissue), ('source', source)]:
+        for name, array in [
+            ('tissue', tissue),
+            ('source', source),
+            ('shift_agreement', agreement),
+            ('conservative_tissue', conservative),
+        ]:
             hdr = section.header.copy()
             hdr.set_data_dtype(np.uint8)
             image = nib.Nifti1Image(array.reshape(section.shape), section.affine, hdr)
