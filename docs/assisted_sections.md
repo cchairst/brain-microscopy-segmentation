@@ -69,3 +69,17 @@ Within the MRI brain outline, the algorithm keeps optical Otsu gray/white estima
 | Vlad | 170 × 200 × 112 | 80.1% | 9.0% | 10.9% |
 
 Coverage describes the fraction assigned a label. MRI supplies the brain outline and the filled regions. Evaluate optical gray/white predictions separately against an independent tissue reference when one becomes available.
+
+### Review unresolved tissue
+
+Select **Review priority slice** in the whole-brain viewer. It opens the slice with the highest unresolved fraction among slices containing at least half the largest cross-sectional brain area. **Why uncertain?** pairs the optical and MRI decisions for each unresolved voxel. The same codes are saved in `uncertainty_reason.nii.gz`.
+
+| ID | Optical decision | MRI decision |
+| --- | --- | --- |
+| 0 | Background or an assigned tissue label | No unresolved decision |
+| 1 | Retardance was nonpositive or reflectivity was at or below the floor | MRI class uncertain |
+| 2 | Same signal criterion as ID 1 | A neighbouring MRI voxel disagreed |
+| 3 | Both contrasts passed the signal criterion; Otsu gave no gray/white label | MRI class uncertain |
+| 4 | Both contrasts passed the signal criterion; Otsu gave no gray/white label | A neighbouring MRI voxel disagreed |
+
+The four reason counts in each row of `slice_diagnostics.csv` sum to the number of unresolved voxels. Slice indices are zero-based.
