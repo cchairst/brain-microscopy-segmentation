@@ -88,6 +88,27 @@ Checks so far (no hand labels): PS-OCT retardance separates MRI white from gray 
 
 Results (one run per direction, agreement with the MRI labels on notebook 03's 20 sections per brain): trained on Moe and tested on Vlad, gray/white Dice is 0.81 / 0.75, the same as the classical methods within their intervals. Trained on Vlad and tested on Moe, it is worse (background 0.76, gray 0.78, white 0.75; otsu 0.90 / 0.82 / 0.78) because it labels Moe's bright, tile-patterned gel as tissue, which Vlad's dark gel never showed it. Keeping otsu's tissue mask and taking only the U-Net's gray/white choice inside it (`unet_masked` in the notebook) removes that failure: Moe scores 0.90 / 0.82 / 0.77, the same as otsu. The U-Net alone predicts no fluid, since the consensus labels contain almost none. Inside tissue it agrees with otsu on 94-95% of pixels: trained on these labels, it reproduces the classical gray/white split and cannot show a gain over it on this benchmark.
 
+## Training sets for a PS-OCT-only model
+
+The aim is a model that labels new sections from PS-OCT alone. `brainseg build-dataset` turns one brain's registered slide deck into its training set: for every section with MRI tissue, the retardance and reflectivity images, a label PNG, a source map and a `manifest.csv` row that every other command reads.
+
+```bash
+brainseg build-dataset --retardance data/moe/warp/Ret_slide_deck.nii.gz --reflectivity data/moe/warp/Ref_slide_deck.nii.gz \
+  --mri-labels outputs/moe_labels_psoct.nii.gz --sample-id moe --axis 1 \
+  --mapping data/moe/slidedeck_slice_mapping.json --output data/training_sets/moe_assisted
+```
+
+For Vlad use `--axis 0 --floor 32.5`. Labels in the default `assisted` mode:
+
+- **Optical:** otsu gray and white matter (otsu's "fluid" is mostly enclosed gel, so it is not trusted).
+- **MRI fill:** only where the optical image cannot decide: dark gaps inside the optical tissue outline (otsu's "fluid" is mostly enclosed gel, so it is not trusted as such) and pixels at the dropout `--floor`. A fill needs an MRI label that is unchanged one MRI voxel away along every axis (7 pixels in-plane and 2 sections through-plane at 0.4 / 0.055 / 0.2 mm), the slide-deck counterpart of the six-shift audit in the MRI-assisted sections. MRI fluid in an enclosed optical gap is kept even when it fails that check: ventricles are thin next to a 0.4 mm voxel (only 2% of Vlad's MRI fluid is shift-stable), and the two modalities agreeing stands in for it. Gel around the brain is never filled: there the MRI outline reaches past the tissue where registration is off, and on Vlad 89% of the MRI fluid next to the tissue sat on that gel. Moe's MRI labels contain no fluid, so its training set has none.
+- **Background:** where otsu and the MRI both say background and the signal is not at the floor.
+- **Not learned from (255):** everything else, including uncertain MRI, unstable MRI fills, dropout outside the brain and unimaged pixels.
+
+`--mode consensus` keeps only pixels where MRI and otsu agree, as notebook 04 does. `sources/` records 0 background, 1 optical, 2 MRI and 255 ignored per pixel, and `report.json` gives the counts per section. The manifest carries `pixel_size_mm`, so `brainseg segment` and `predict` report HD95 in um on these sections.
+
+These labels are a teacher, not a reference: optical labels are otsu and fills are MRI, so a model trained on them learns to reproduce both. Score models on a held-out brain against the shift-stable MRI labels, and have the lab review a few predictions.
+
 ## Benchmark outputs
 
 - Per-class Dice, IoU, precision, recall, support, and a 5 x 5 confusion matrix in ID order 0-4.
