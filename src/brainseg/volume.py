@@ -1,5 +1,6 @@
 """Whole-brain tissue estimates on the CMC ex vivo MRI grid."""
 
+import csv
 import json
 from pathlib import Path
 from tempfile import TemporaryDirectory
@@ -40,6 +41,34 @@ def classify(ret, ref, mri, axis, spacing, floor):
     return tissue, source
 
 
+# Every abstention has both an optical reason and an MRI reason.
+REASON_NAMES = ('signal_mri_unknown', 'signal_mri_boundary', 'otsu_mri_unknown', 'otsu_mri_boundary')
+
+
+def uncertainty_reasons(ret, ref, mri, source, floor):
+    """Trace unresolved voxels through the optical gate and MRI fallback used in classify."""
+    reason = np.zeros(source.shape, np.uint8)
+    unresolved = source == IGNORE
+    signal_passed = (ret[unresolved] > 0) & (ref[unresolved] > floor)
+    mri_has_class = mri[unresolved] != IGNORE
+    reason[unresolved] = 1 + 2 * signal_passed + mri_has_class
+    return reason
+
+
+def slice_diagnostics(reason, source, axis):
+    """Count paired failure reasons and pick a sizable slice with the highest unresolved fraction."""
+    sources = np.moveaxis(source, axis, 0)
+    brain = np.count_nonzero(sources, axis=(1, 2))
+    rows = []
+    for i, plane in enumerate(np.moveaxis(reason, axis, 0)):
+        counts = np.bincount(plane.ravel(), minlength=5)[1:]
+        unresolved = int(counts.sum())
+        rows.append([i, int(brain[i]), unresolved, unresolved / brain[i] if brain[i] else 0.0, *counts.tolist()])
+    eligible = [row for row in rows if row[1] >= brain.max() / 2]
+    priority = max(eligible, key=lambda row: row[3])[0]
+    return rows, priority
+
+
 def run(subject, reflectivity, retardance, mri_labels, output):
     """Process all slices, including blank end slices, and save on the MRI affine."""
     ref, ret, labels = (nib.load(p) for p in (reflectivity, retardance, mri_labels))
@@ -72,7 +101,11 @@ def run(subject, reflectivity, retardance, mri_labels, output):
     if not np.isin(mri, [0, 1, 2, 3, IGNORE]).all() or not (mri != 0).any():
         raise ValueError('Expected nonempty semantic MRI labels from notebook 02.')
     tissue, source = classify(*contrasts, mri.astype(np.uint8), axis, labels.header.get_zooms()[:3], floor)
+    reason = uncertainty_reasons(*contrasts, mri, source, floor)
+    rows, priority = slice_diagnostics(reason, source, axis)
     report = {
+        'priority_slice_index': priority,
+        'uncertain_by_reason': dict(zip(REASON_NAMES, np.bincount(reason.ravel(), minlength=5)[1:].tolist())),
         'subject': subject,
         'shape': list(labels.shape),
         'section_axis': axis,
@@ -90,11 +123,15 @@ def run(subject, reflectivity, retardance, mri_labels, output):
     with TemporaryDirectory(dir=output.parent) as tmp:
         stage = Path(tmp) / 'volume'
         stage.mkdir()
-        for name, arr in [('tissue', tissue), ('source', source)]:
+        for name, arr in [('tissue', tissue), ('source', source), ('uncertainty_reason', reason)]:
             header = labels.header.copy()
             header.set_data_dtype(np.uint8)
             nib.save(nib.Nifti1Image(arr, labels.affine, header), stage / f'{name}.nii.gz')
-        write_viewer(stage / 'viewer.html', subject, axis, contrasts[1], tissue, source)
+        with (stage / 'slice_diagnostics.csv').open('w', newline='') as f:
+            writer = csv.writer(f)
+            writer.writerow(['slice_index', 'brain_voxels', 'uncertain_voxels', 'uncertain_fraction', *REASON_NAMES])
+            writer.writerows(rows)
+        write_viewer(stage / 'viewer.html', subject, axis, contrasts[1], tissue, source, reason, priority)
         (stage / 'report.json').write_text(json.dumps(report, indent=2) + '\n')
         stage.rename(output)
     return report
