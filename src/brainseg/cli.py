@@ -45,6 +45,21 @@ def main(argv=None):
     )
     p.add_argument('--seed', type=int, default=0)
 
+    p = sub.add_parser('build-dataset', help="Training set for a PS-OCT-only model from one brain's slide deck.")
+    p.add_argument('--retardance', required=True, help='Ret_slide_deck.nii.gz')
+    p.add_argument('--reflectivity', required=True, help='Ref_slide_deck.nii.gz')
+    p.add_argument(
+        '--mri-labels', required=True, help='MRI labels on the slide-deck grid (<subject>_labels_psoct.nii.gz)'
+    )
+    p.add_argument('--sample-id', required=True, help='Brain name used in the manifest, e.g. moe')
+    p.add_argument('--axis', type=int, required=True, help='Slide-deck axis that indexes sections (moe 1, vlad 0)')
+    p.add_argument('--output', required=True, help='New directory for images, labels, sources and manifest.csv')
+    p.add_argument('--split', choices=['train', 'val', 'test'], default='train')
+    p.add_argument('--mode', choices=['assisted', 'consensus'], default='assisted')
+    p.add_argument('--floor', type=float, help='Reflectivity value that marks signal dropout (vlad 32.5)')
+    p.add_argument('--mapping', help='slidedeck_slice_mapping.json, to name sections Slice_NNN')
+    p.add_argument('--mri-voxel-mm', type=float, default=0.4, help='MRI voxel size for the shift-stability check')
+
     p = sub.add_parser('compare', help='Collect report.json files into one table with 95% bootstrap intervals.')
     p.add_argument('reports', nargs='+', help='report.json files or the run directories that contain them')
     p.add_argument('--output', required=True, help='CSV to write')
@@ -102,6 +117,23 @@ def main(argv=None):
             seed=args.seed,
         )
         print(f'Report saved to {args.output}/report.json; mean sample Dice: {report["mean_sample_macro_dice"]}')
+    elif args.command == 'build-dataset':
+        from brainseg.dataset import build
+
+        report = build(
+            args.retardance,
+            args.reflectivity,
+            args.mri_labels,
+            args.output,
+            args.sample_id,
+            args.axis,
+            args.split,
+            args.mode,
+            args.floor,
+            args.mapping,
+            args.mri_voxel_mm,
+        )
+        print(json.dumps({k: v for k, v in report.items() if k != 'per_section'}, indent=2))
     elif args.command == 'compare':
         from brainseg.compare import compare
 
