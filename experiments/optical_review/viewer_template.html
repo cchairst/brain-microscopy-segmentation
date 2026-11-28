@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>@SUBJECT@ · Optical tissue review</title>
+<style>
+*{box-sizing:border-box}body{margin:0 auto;max-width:1120px;padding:20px;color:#e3e9f0;background:#101820;
+font:16px/1.45 system-ui,sans-serif}h1{font-size:1.6rem;margin:0}p{margin:5px 0 14px}button,select{font:inherit;
+padding:7px;border-radius:5px;background:#253242;color:#f7fafc;border:1px solid #8496a9}button:disabled{opacity:.45}
+.controls,.grid,footer{display:flex;gap:12px;align-items:center;flex-wrap:wrap}.grid{align-items:start;margin-top:14px}
+figure{flex:1 1 300px;margin:0;min-width:0}figcaption{font-weight:600;margin:0 0 4px}canvas{display:block;background:#070b10;
+width:100%;image-rendering:pixelated}input{width:100%;margin:16px 0;accent-color:#00ffd2}output{display:block;font-weight:600;margin-top:8px}
+#legend span{display:inline-block;margin:0 10px 0 0}i{display:inline-block;width:11px;height:11px;margin-right:5px}
+</style><main><h1>@SUBJECT@ · Optical tissue review</h1><p>@PLANE@ sections on the MRI grid · zero-based indices</p>
+<div class="controls"><label>Overlay <select id="mode"><option value="flag">Optical review flags</option>
+<option value="tissue">Tissue segmentation</option></select></label><button id="most">Most flagged slice</button></div>
+<div class="grid"><figure><figcaption>PS-OCT reflectivity</figcaption><canvas id="raw" aria-label="Raw reflectivity"></canvas></figure>
+<figure><figcaption id="caption">Optical review flags</figcaption><canvas id="overlay" aria-label="Selected overlay on same slice"></canvas></figure></div>
+<input type="range" id="index" min="0" step="1" aria-label="Slice index"><footer><button id="prev">Previous slice</button><button id="next">Next slice</button>
+<output id="position"></output></footer><p id="legend"></p><p id="help"></p></main>
+<script>
+const frames=@FRAMES@;
+const counts=@COUNTS@;
+const most=@START@;
+const get=id=>document.getElementById(id);
+const palette={1:['Gray matter',[241,166,77]],2:['White matter',[92,167,241]],3:['Possible fluid',[183,133,216]],255:['Uncertain',[137,142,150]]};
+const flag=['Review flag',[0,255,210]];
+const slider=get('index'),mode=get('mode');
+slider.max=frames.length-1;slider.value=most;
+let revision=0;
+function render(){
+  const index=Number(slider.value),flags=mode.value==='flag',token=++revision;
+  get('prev').disabled=index===0;get('next').disabled=index===frames.length-1;
+  get('position').textContent='Index '+index+' of '+(frames.length-1)+' · '+counts[index]+' flagged voxels';
+  get('caption').textContent=mode.selectedOptions[0].text;
+  get('help').textContent=flags?'Cyan marks unresolved voxels with matching optical tissue estimates on both sides along at least two axes.':'Gray and white labels combine optical estimates and stable MRI fills. Unresolved tissue is shown in gray.';
+  const legend=get('legend');legend.replaceChildren();
+  for(const [label,color] of (flags?[flag]:Object.values(palette))){
+    const key=document.createElement('i'),entry=document.createElement('span');
+    key.style.background='rgb('+color.join(',')+')';entry.append(key,label);legend.append(entry);
+  }
+  const img=new Image();
+  img.onload=()=>{
+    if(token!==revision)return;
+    const raw=get('raw'),overlay=get('overlay');raw.width=overlay.width=img.width;raw.height=overlay.height=img.height;
+    const left=raw.getContext('2d',{willReadFrequently:true}),right=overlay.getContext('2d');
+    left.drawImage(img,0,0);const intensity=left.getImageData(0,0,img.width,img.height);
+    const result=right.createImageData(img.width,img.height);
+    for(let i=0;i<intensity.data.length;i+=4){
+      const level=intensity.data[i],tissue=intensity.data[i+1],marked=intensity.data[i+2];
+      const entry=flags?(marked?flag:null):palette[tissue];
+      for(let k=0;k<3;k++){
+        intensity.data[i+k]=level;
+        result.data[i+k]=entry?(flags?entry[1][k]:.45*level+.55*entry[1][k]):level;
+      }
+      result.data[i+3]=255;
+    }
+    left.putImageData(intensity,0,0);right.putImageData(result,0,0);
+  };img.src='data:image/png;base64,'+frames[index];
+}
+get('prev').onclick=()=>{slider.stepDown();render()};get('next').onclick=()=>{slider.stepUp();render()};
+get('most').onclick=()=>{slider.value=most;mode.value='flag';render()};slider.oninput=mode.onchange=render;render();
+</script></html>
