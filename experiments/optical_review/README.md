@@ -32,3 +32,14 @@ Open the generated `Moe_review.html` or `Vlad_review.html` in a browser. Each vi
 | `*_review_flags.nii.gz` | Binary spatial review flags on the MRI grid |
 | `*_experimental_candidates.nii.gz` | Forest class proposals on previously unresolved voxels |
 | `BCM_optical_review.png` | Side-by-side preview using each animal’s slice with the most review flags |
+
+## Check sensitivity to MRI alignment
+
+Run this after the forest comparison, once per animal.
+
+```bash
+python "$trial/boundary_audit.py" --candidates "$out/Vlad_experimental_candidates.nii.gz" \
+  --mri "$inputs/Vlad_MRI_reference.nii.gz" --output "$out/Vlad_boundary"
+```
+
+The audit map uses 0 for no proposal, 1 for an exact match, 2 for a mismatch whose proposed class appears in at least one of six face neighbours, 3 for a mismatch with no such neighbour, and 4 for an unscorable MRI center. For a uniform shift, `shift_scores.csv` reports gains and losses on the same scorable centers at every offset. Axis and step are MRI voxel coordinates. Out-of-volume samples count as background. A nearby match can indicate a tissue boundary or registration sensitivity. It cannot establish which tissue label is anatomically correct.
